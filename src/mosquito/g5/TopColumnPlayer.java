@@ -124,8 +124,25 @@ public Set<Light> updateLights(int[][] board) {
 				double distance = Math.pow(x+y,.5);
 				if(distance > 20 && distance < shortestDistance && board[t.x][t.y] > 0)
 				{
-					shortestDistance=distance;
-					boardSpace = t;
+
+					// Make sure the mosquito hasn't already been captured by another light
+					boolean captured = false;
+					// Check to make sure item isn't within the radius of another light (already captured)
+					// This check doesn't seem that helpful, time-wise
+					for (int j = 0; j < numLights; j++) {
+						if ( i != j ) {
+							x = Math.pow(t.x-lightArr[j].getX(),2);
+							y = Math.pow(t.y-lightArr[j].getY(),2);
+							distance = Math.pow(x+y,.5);
+							if ( distance < 20 ) {
+								captured = true;
+							}
+						}
+					}
+					if ( !captured ) {
+						shortestDistance=distance;
+						boardSpace = t;
+					}					
 				}
 			}
 			// If we found a valid boardSpace for the closest mosquito, set that as the new objective

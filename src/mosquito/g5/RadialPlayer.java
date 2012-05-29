@@ -169,8 +169,7 @@ public Set<Light> updateLights(int[][] board) {
 				// Make sure the mosquito hasn't already been captured by another light
 				boolean captured = false;
 				// Check to make sure item isn't within the radius of another light (already captured)
-				// This check didn't prove all that helpful, time-wise, so I commented it out.
-				/*
+				// This check doesn't seem that helpful, time-wise
 				for (int j = 0; j < numLights; j++) {
 					if ( i != j ) {
 						x = Math.pow(t.x-lightArr[j].getX(),2);
@@ -181,7 +180,6 @@ public Set<Light> updateLights(int[][] board) {
 						}
 					}
 				}
-				*/
 
 				if ( !captured ) {
 					closestMosquitoDistance = distance;
