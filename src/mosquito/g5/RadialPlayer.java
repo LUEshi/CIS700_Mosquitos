@@ -158,32 +158,48 @@ public Set<Light> updateLights(int[][] board) {
 		// Retrieve the objective (destination) for the current light
 		Tuple<Integer,Integer> o = objective.get(i);
 
+		// Find the closest mosquito within the light's sector
+		Tuple<Integer,Integer> closestMosquito = null;
+		double closestMosquitoDistance = Double.MAX_VALUE;
+		for ( Tuple<Integer,Integer> t: sectors.get(i) ) {
+			double x = Math.pow(t.x-lightArr[i].getX(),2);
+			double y = Math.pow(t.y-lightArr[i].getY(),2);
+			double distance = Math.pow(x+y,.5);
+			if ( board[t.x][t.y] > 0 && distance > 20 && distance < closestMosquitoDistance ) {
+				// Make sure the mosquito hasn't already been captured by another light
+				boolean captured = false;
+				// Check to make sure item isn't within the radius of another light (already captured)
+				// This check didn't prove all that helpful, time-wise, so I commented it out.
+				/*
+				for (int j = 0; j < numLights; j++) {
+					if ( i != j ) {
+						x = Math.pow(t.x-lightArr[j].getX(),2);
+						y = Math.pow(t.y-lightArr[j].getY(),2);
+						distance = Math.pow(x+y,.5);
+						if ( distance < 20 ) {
+							captured = true;
+						}
+					}
+				}
+				*/
+
+				if ( !captured ) {
+					closestMosquitoDistance = distance;
+					closestMosquito = t;
+				}
+			}
+		}
+		log.debug("closestMosquito to light " + i + ":" + (closestMosquito==null) );
 
 		// If the objective is null, calculate a new objective
 		if( objective.get(i)==null ||
 		(Math.abs(o.x - lightArr[i].getX()) < epsilon && Math.abs(lightArr[i].getY() - o.y) < epsilon)){
-
-			double shortestDistance = 9999;
-			Tuple<Integer,Integer> boardSpace = null;
-			for(Tuple<Integer,Integer> t : sectors.get(i))
-			{
-				double x = Math.pow(t.x-lightArr[i].getX(),2);
-				double y = Math.pow(t.y-lightArr[i].getY(),2);
-				double distance = Math.pow(x+y,.5);
-				if(distance > 20 && distance < shortestDistance && board[t.x][t.y] > 0)
-				{
-					shortestDistance=distance;
-					boardSpace = t;
-				}
-			}
-			// If we found a valid boardSpace for the closest mosquito, set that as the new objective
-			// Otherwise, move to the collector
-			if ( boardSpace!=null) {
-				objective.put(i, boardSpace);
+			if ( closestMosquito != null ) {
+				objective.put(i, closestMosquito);
 			} else {
 				objective.put(i, new Tuple<Integer,Integer>(50,51));
 			}
-			log.debug("New objective for light " + i +": " + objective.get(i).x + "," + objective.get(i).y);			
+				log.debug("New objective for light " + i +": " + objective.get(i).x + "," + objective.get(i).y);
 		}
 
 		// Set the new light position based on the objective
@@ -209,11 +225,10 @@ public Set<Light> updateLights(int[][] board) {
 */
 @Override
 public Set<Collector> getCollectors() {
-	// this one just places a collector next to the last light that was added
+	// Position collector at center
 	collectors = new HashSet<Collector>();
-	//Collector c = new Collector(lastLight.getX()+1,lastLight.getY() +1);
-	//log.debug("Positioned a Collector at (" + (lastLight.getX()+1) + ", " + (lastLight.getY()+1) + ")");
 	Collector c = new Collector(50,51);
+	log.debug("Positioned a Collector at (" + 50 + ", " + 51 + ")");
 	collectors.add(c);
 	return collectors;
 }
