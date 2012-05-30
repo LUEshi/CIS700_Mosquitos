@@ -4,7 +4,9 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 
@@ -128,14 +130,14 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				for(int y = (int)(p1.getY()); y < p2.getY(); y++)
 				{
 					for(int x  = (int)((y - p1.getY())/slope ); 
-							x < 100 && intersectsLines((y - p1.getY())/slope,y,x,y); x++)
+							x < 100 && !intersectsLines((y - p1.getY())/slope,y,x,y); x++)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						rightSet.add(t);
 					}
 					for(int x  = (int)((y - p1.getY())/slope ); 
-							x > 0 && intersectsLines((y - p1.getY())/slope,y,x,y); x--)
+							x > 0 && !intersectsLines((y - p1.getY())/slope,y,x,y); x--)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
@@ -154,14 +156,14 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				for(int x = (int)(p1.getX()); x < p2.getX(); x++)
 				{
 					for(int y  = (int)(x * slope + p1.getY()); 
-							y < 100 && intersectsLines(x,(x * slope + p1.getY()),x,y); y++)
+							y < 100 && !intersectsLines(x,(x * slope + p1.getY()),x,y); y++)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						downSet.add(t);
 					}
 					for(int y  = (int)(x * slope + p1.getY()); 
-							y > 0 && intersectsLines(x,(x * slope + p1.getY()),x,y); y--)
+							y > 0 && !intersectsLines(x,(x * slope + p1.getY()),x,y); y--)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
@@ -187,6 +189,42 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			HashSet<Tuple<Integer,Integer>> v = m.get(in);
 			s.removeAll(v);
 		}
+		while(!s.isEmpty()){
+			Queue<Tuple<Integer, Integer>> q = new LinkedList<Tuple<Integer,Integer>>();
+			q.add(s.iterator().next());
+			HashSet<Tuple<Integer,Integer>> x = new HashSet<Tuple<Integer,Integer>>();
+			while(!q.isEmpty()){
+				Tuple<Integer,Integer> t =q.poll();
+				x.add(t);
+				s.remove(t);
+				Tuple<Integer,Integer> t2 = new Tuple<Integer,Integer>(t.x+1,t.y)
+				if(s.contains(t2))
+				{
+					x.add(t2);
+					s.remove(t2);
+				}
+				t2 = new Tuple<Integer,Integer>(t.x-1,t.y)
+				if(s.contains(t2))
+				{
+					x.add(t2);
+					s.remove(t2);
+				}
+				t2 = new Tuple<Integer,Integer>(t.x,t.y+1)
+				if(s.contains(t2))
+				{
+					x.add(t2);
+					s.remove(t2);
+				}
+				t2 = new Tuple<Integer,Integer>(t.x+1,t.y-1)
+				if(s.contains(t2))
+				{
+					x.add(t2);
+					s.remove(t2);
+				}
+			}
+			m.put(m.size(),x);
+		}
+		
 		m.put(m.size(), s);
 
 		return m;
