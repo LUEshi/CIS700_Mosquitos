@@ -197,25 +197,25 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				Tuple<Integer,Integer> t =q.poll();
 				x.add(t);
 				s.remove(t);
-				Tuple<Integer,Integer> t2 = new Tuple<Integer,Integer>(t.x+1,t.y)
+				Tuple<Integer,Integer> t2 = new Tuple<Integer,Integer>(t.x+1,t.y);
 				if(s.contains(t2))
 				{
 					x.add(t2);
 					s.remove(t2);
 				}
-				t2 = new Tuple<Integer,Integer>(t.x-1,t.y)
+				t2 = new Tuple<Integer,Integer>(t.x-1,t.y);
 				if(s.contains(t2))
 				{
 					x.add(t2);
 					s.remove(t2);
 				}
-				t2 = new Tuple<Integer,Integer>(t.x,t.y+1)
+				t2 = new Tuple<Integer,Integer>(t.x,t.y+1);
 				if(s.contains(t2))
 				{
 					x.add(t2);
 					s.remove(t2);
 				}
-				t2 = new Tuple<Integer,Integer>(t.x+1,t.y-1)
+				t2 = new Tuple<Integer,Integer>(t.x+1,t.y-1);
 				if(s.contains(t2))
 				{
 					x.add(t2);
