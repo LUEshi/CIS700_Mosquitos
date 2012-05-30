@@ -64,11 +64,41 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		objective = new HashMap<Integer,Tuple<Integer,Integer>>();
 		lightArr = new Light[numLights];
 		Random r = new Random();
-		sectors = getSectors();
+		Set<Integer> sectorsTaken = new HashSet<Integer>();
+
 		for(int i=0; i<numLights;i++)
 		{
-			int x = ((100/numLights * i) + (100/numLights * (i+1)))/2;
-			lastLight = new Point2D.Double(x, 0);
+
+			int mostMosquitoes = 0;
+			int sectorWithMostMosquitoes = 1; // Defaults to 1
+			Tuple<Integer,Integer> startingPoint = new Tuple<Integer,Integer>(1,1);
+			sectors = getSectors();
+			log.trace("Number of sectors is: " + sectors.size());
+			for ( int j = 0; j < sectors.size(); j++ ) {
+				if ( !sectorsTaken.contains(j) ) {
+					int mosquitoCount = 0;
+					int tupleCount = 0;
+					Tuple lastTupleChecked = new Tuple<Integer,Integer>(1,1);
+					for ( Tuple<Integer,Integer> t : sectors.get(j) ) {
+						tupleCount++;
+						mosquitoCount += board[t.x][t.y];
+					}
+					log.trace("Spaces in sector " + j + ":" + tupleCount);
+					log.trace("Mosquitoes in sector " + j + ":" + mosquitoCount);
+					
+					if ( mosquitoCount > mostMosquitoes ) {
+						mostMosquitoes = mosquitoCount;
+						sectorWithMostMosquitoes = j;
+						// arbitrarily place the light in the last spot we checked
+						startingPoint = lastTupleChecked;
+						sectorsTaken.add(j);
+					}
+				}
+			}
+
+			
+			//int x = startingPoint.x;
+			lastLight = new Point2D.Double(startingPoint.x, startingPoint.y);
 			MoveableLight l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
 			log.trace("Positioned a light at (" + lastLight.getX() + ", " + lastLight.getY() + ")");
 			lights.add(l);
@@ -279,8 +309,8 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		collectors = new HashSet<Collector>();
 		//Collector c = new Collector(lastLight.getX()+1,lastLight.getY() +1);
 		//log.debug("Positioned a Collector at (" + (lastLight.getX()+1) + ", " + (lastLight.getY()+1) + ")");
-		//Collector c = new Collector(50,51);
-		Collector c = new Collector(2,2);
+		Collector c = new Collector(50,51);
+		//Collector c = new Collector(2,2);
 		collectors.add(c);
 		return collectors;
 	}
