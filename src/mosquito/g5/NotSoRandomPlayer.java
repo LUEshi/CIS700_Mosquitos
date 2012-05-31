@@ -3,9 +3,11 @@ package mosquito.g5;
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Point2D.Double;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Random;
@@ -32,10 +34,10 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 	private Set<Light> lights;
 	private Set<Collector> collectors;
 	private Set<Line2D> walls;
-	private Map<Integer,Tuple<Integer,Integer>> objective;
+	private Map<Integer,List<Tuple<Integer,Integer>>> objective;
 	private Light[] lightArr;
 	private int[] sectorArr;
-	
+
 	/*
 	 * This is called when a new game starts. It is passed the set
 	 * of lines that comprise the different walls, as well as the 
@@ -53,7 +55,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		return "Not So Random Player";
 	}
 
-	
+
 	public int getMosquitoesInSector(int s, int[][] board) {
 		int mosquitoCount = 0;
 		for ( Tuple<Integer,Integer> t : sectors.get(s) ) {
@@ -62,13 +64,62 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		return mosquitoCount;
 	}
 
+
+	public int heuristicCostEstimate(Tuple<Integer,Integer> start, Tuple<Integer,Integer> goal) {
+		// Manhattan distance
+		
+		return Math.abs(start.x-goal.x) + Math.abs(start.y-goal.y);
+	}
+
+	/*
+	 * The idea is to give the endpoints of lines plenty of room
+	 * so as not to lose mosquitoes
+	 */
+	public boolean nearEndpoints( Tuple<Integer,Integer> node ) {
+		for(Line2D wall : this.walls)
+		{
+			if ( Math.abs(node.x - wall.getP1().getX()) + Math.abs(node.y - wall.getP1().getY()) < 10 ) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public HashSet<Tuple<Integer,Integer>> getNeighborNodes( Tuple<Integer,Integer> node ) {
+		HashSet<Tuple<Integer,Integer>> neighbors = new HashSet<Tuple<Integer,Integer>>();
+		for ( int x = -1; x <= 1; x++ ) {
+			for ( int y = -1; y <=1; y++ ) {
+				Tuple<Integer,Integer> neighbor = new Tuple<Integer,Integer>(node.x+x,node.y+y);
+				if ( node.x+x>=0 && node.x+x < 100 && node.y+y >= 0 && node.y+y<100 && !(x==node.x && y==node.y) 
+						&& !intersectsLines(node.x,node.y,neighbor.x,neighbor.y) 
+						&& !nearEndpoints(neighbor) ) {
+					neighbors.add(neighbor);
+				}
+			}
+		}
+		return neighbors;
+	}
+
+
+	public List<Tuple<Integer,Integer>> reconstructPath ( HashMap<Tuple<Integer,Integer>,Tuple<Integer,Integer>> cameFrom, Tuple<Integer,Integer> currentNode ) {
+		//log.trace("reconstructPath: cameFrom size:" + cameFrom.size() );
+		List<Tuple<Integer,Integer>> path = new ArrayList<Tuple<Integer,Integer>>();
+		if ( cameFrom.containsKey(currentNode) ) {
+			path = reconstructPath( cameFrom, cameFrom.get(currentNode));
+			path.add(currentNode);
+			return path;
+		} else {
+			path.add(currentNode);
+			return path;
+		}
+	}
+
+
 	/*
 	 * aStar
 	 * Taken from http://en.wikipedia.org/wiki/A*_search_algorithm
 	 */
-
-/*	
-	public Tuple<Integer,Integer> aStar ( Tuple<Integer,Integer> start, Tuple<Integer,Integer> goal) {
+	public List<Tuple<Integer,Integer>> aStar ( Tuple<Integer,Integer> start, Tuple<Integer,Integer> goal) {
 		// Set closedSet = empty set
 		HashSet<Tuple<Integer,Integer>> closedSet = new HashSet<Tuple<Integer,Integer>>();
 
@@ -79,46 +130,65 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 
 		// The map of navigated nodes.
 		// Initially set to empty map
-		HashMap<Integer,Tuple<Integer,Integer>> cameFrom = new HashMap<Integer,Tuple<Integer,Integer>>();
+		HashMap<Tuple<Integer,Integer>,Tuple<Integer,Integer>> cameFrom = new HashMap<Tuple<Integer,Integer>,Tuple<Integer,Integer>>();
 
- 
-     
-		g_score[start] := 0    // Cost from start along best known path.
-     // Estimated total cost from start to goal through y.
-     f_score[start] := g_score[start] + heuristic_cost_estimate(start, goal)
- 
-     while ( !openSet.isEmpty() ) {
-         current := the node in openset having the lowest f_score[] value
-         if current = goal
-             return reconstruct_path(came_from, goal)
- 
-		 //remove current from openset
-		 openSet.remove(current);
-         
-         //add current to closedset
-     	 closedSet.add(current);
 
-     	 // for each neighbor in neighbor_nodes(current)
-     	 for ( Tuple<Integer,Integer> neighbor : neighbor_nodes(current) ) {
-            // if neighbor in closedset
-     		if ( closedSet.contains(neighbor)) 
-                 continue;
-            tentative_g_score := g_score[current] + dist_between(current,neighbor)
- 
-            if ( !openSet.contains(neighbor) || tentative_g_score < g_score[neighbor] ) { 
-                 // add neighbor to openset
-            	 openSet.add(neighbor);
-                 came_from[neighbor] := current
-                 g_score[neighbor] := tentative_g_score
-                 f_score[neighbor] := g_score[neighbor] + heuristic_cost_estimate(neighbor, goal)
-            }
-     }
- 
-     // Failure
-     return new Tuple<Integer,Integer>(-1,-1);
-}
-*/	
-	
+		HashMap<Tuple<Integer,Integer>,Integer> g_score = new HashMap<Tuple<Integer,Integer>,Integer>();
+		g_score.put(start,0); // Cost from start along best known path.
+
+		// Estimated total cost from start to goal through y.
+		HashMap<Tuple<Integer,Integer>,Integer> f_score = new HashMap<Tuple<Integer,Integer>,Integer>();
+		f_score.put(start, g_score.get(start) + heuristicCostEstimate(start, goal));
+
+		while ( !openSet.isEmpty() ) {
+			// current := the node in openset having the lowest f_score[] value
+			int lowestF = Integer.MAX_VALUE;
+			Tuple<Integer,Integer> current = null;
+			for ( Tuple<Integer,Integer> node : openSet ) {
+				if ( f_score.get(node) < lowestF ) {
+					lowestF = f_score.get(node);
+					current = node;
+				}
+			}
+			if  ( current.equals(goal) ) {
+				return reconstructPath(cameFrom, goal);
+			}
+
+			//remove current from openset
+			openSet.remove(current);
+
+			//add current to closedset
+			closedSet.add(current);
+
+
+			HashSet<Tuple<Integer,Integer>> neighbor_nodes = getNeighborNodes(current);
+//			log.trace("Neighboring nodes: " + neighbor_nodes.size());
+			// for each neighbor in neighbor_nodes(current)
+			for ( Tuple<Integer,Integer> neighbor : neighbor_nodes ) {
+				// if neighbor in closedset
+				if ( closedSet.contains(neighbor) ) 
+					continue;
+
+				int tentative_g_score = g_score.get(current) + 1;
+
+//				log.trace("Open set size:" + openSet.size());
+				if ( !openSet.contains(neighbor) || tentative_g_score < g_score.get(neighbor) ) { 
+					// add neighbor to openset
+//					log.trace("adding a neighbor to openSet with tentative_g_score" + tentative_g_score);
+					openSet.add(neighbor);
+					cameFrom.put(neighbor, current);
+					g_score.put(neighbor, tentative_g_score);
+					f_score.put(neighbor, g_score.get(neighbor) + heuristicCostEstimate(neighbor, goal));
+				}
+			}
+		}
+
+		// Failure
+		log.error("A* is returning null! This should never happen!");
+		return null;
+	}
+
+
 	/*
 	 * This is used to find the sector containing the most mosquitoes
 	 * excepting sectors that have already been assigned to other lights
@@ -126,10 +196,14 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 	public int getSectorWithMostMosquitoes( int[][] board ) {
 
 		int mostMosquitoes = 0;
-		int sectorWithMostMosquitoes = 0; // Defaults to 0
+		int sectorWithMostMosquitoes = -1; // Defaults to 0
 		Tuple<Integer,Integer> startingPoint = new Tuple<Integer,Integer>(1,1);
-		sectors = getSectors();
 		log.trace("Number of sectors is: " + sectors.size());
+		for ( int z = 0 ; z < assignedSectors.size() ; z++ ) {
+			log.trace("Sector " + z + " is assigned");
+		}
+		
+		
 		for ( int j = 0; j < sectors.size(); j++ ) {
 			if ( !assignedSectors.contains(j) ) {
 				int mosquitoCount = 0;
@@ -138,7 +212,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				mosquitoCount = getMosquitoesInSector(j, board);
 				log.trace("Spaces in sector " + j + ":" + tupleCount);
 				log.trace("Mosquitoes in sector " + j + ":" + mosquitoCount);
-				
+
 				if ( mosquitoCount > mostMosquitoes ) {
 					mostMosquitoes = mosquitoCount;
 					sectorWithMostMosquitoes = j;
@@ -161,7 +235,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		}
 		return space;
 	}
-	
+
 
 	/*
 	 * This is used to determine the initial placement of the lights.
@@ -172,9 +246,10 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 	public Set<Light> getLights(int[][] board) {
 		// Initially place the lights randomly, and put the collector next to the last light
 
+		sectors = getSectors();
 		assignedSectors = new HashSet<Integer>();
 		lights = new HashSet<Light>();
-		objective = new HashMap<Integer,Tuple<Integer,Integer>>();
+		objective = new HashMap<Integer,List<Tuple<Integer,Integer>>>();
 		lightArr = new Light[numLights];
 		sectorArr = new int [numLights];
 		Random r = new Random();
@@ -183,15 +258,19 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		for(int i=0; i<numLights;i++)
 		{
 
+			Tuple<Integer,Integer> startingPoint = null;
 			int mostMosquitoes = 0;
 			int sectorWithMostMosquitoes = getSectorWithMostMosquitoes(board);
-			assignedSectors.add(sectorWithMostMosquitoes);
+			if (sectorWithMostMosquitoes >=0 ) {
+				assignedSectors.add(sectorWithMostMosquitoes);
 
-			Tuple<Integer,Integer> startingPoint = null;
-			HashSet<Tuple<Integer,Integer>> sector = getSectors().get(sectorWithMostMosquitoes);
-			for ( Tuple<Integer,Integer> t : sector ) {
-				startingPoint = t;
-				break; // Arbitrarily just start in the first tuple of the sector
+				HashSet<Tuple<Integer,Integer>> sector = sectors.get(sectorWithMostMosquitoes);
+				for ( Tuple<Integer,Integer> t : sector ) {
+					startingPoint = t;
+					break; // Arbitrarily just start in the first tuple of the sector
+				}
+			} else {
+				startingPoint = new Tuple<Integer,Integer>(51,51);
 			}
 
 
@@ -233,11 +312,11 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		}
 		return false;
 	}
-
+	
 	public HashMap<Integer, HashSet<Tuple<Integer,Integer>>> getSectors()
 	{
 		HashMap<Integer, HashSet<Tuple<Integer,Integer>>> m =
-			new HashMap<Integer, HashSet<Tuple<Integer,Integer>>>();
+				new HashMap<Integer, HashSet<Tuple<Integer,Integer>>>();
 		//FOR EACH LINE, check angle, make sector vert or horiz based on angle.
 		for(Line2D l : this.walls)
 		{
@@ -248,7 +327,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				p1 = p2;
 				p2 = l.getP1();
 			}
-			double slope = -1 * ( (p2.getY() - p1.getY()) / (p2.getX() - p1.getX()) );
+			double slope = (p2.getY() - p1.getY()) / (p2.getX() - p1.getX());
 			if(slope > 1 || slope < -1)
 			{
 				//hori 
@@ -263,7 +342,16 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				HashSet<Tuple<Integer,Integer>> rightSet = new HashSet<Tuple<Integer,Integer>>();
 				for(int y = (int)(p1.getY()); y < p2.getY(); y++)
 				{
-					for(int x  = (int)(((y - p1.getY())/slope + p1.getX()) +.5 ); 
+
+					/*
+					for(int x  = (int)(((y - p1.getY())/slope + p1.getX()) +.5 ); x < 100 ; x++)
+					{
+						log.trace("y:" + y + "," + intersectsLines(((y - p1.getY())/slope + p1.getX()) +.5,y,x,y));
+					}
+					 */
+
+
+					for(int x  = (int)( ((y-p1.getY())/slope) + p1.getX() +.5 );
 							x < 100 && !intersectsLines(((y - p1.getY())/slope + p1.getX()) +.5,y,x,y); x++)
 					{
 						//add (x,y) to the sector
@@ -291,14 +379,14 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				HashSet<Tuple<Integer,Integer>> downSet = new HashSet<Tuple<Integer,Integer>>();
 				for(int x = (int)(p1.getX()); x < p2.getX(); x++)
 				{
-					for(int y  = (int)(x * slope + p1.getY() +.5); 
+					for(int y  = (int)( (x-p1.getX())*slope + p1.getY() +.5); 
 							y < 100 && !intersectsLines(x,(x * slope + p1.getY() +.5),x,y); y++)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						downSet.add(t);
 					}
-					for(int y  = (int)(x * slope + p1.getY() -.5); 
+					for(int y  = (int)( (x-p1.getX())*slope + p1.getY() -.5); 
 							y > 0 && !intersectsLines(x,(x * slope + p1.getY() -.5),x,y); y--)
 					{
 						//add (x,y) to the sector
@@ -311,6 +399,11 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				if(downSet.size() > 0)
 					m.put(m.size(), upSet);
 			}
+		}
+
+		log.trace("There are currently " + m.size() + " sectors");
+		for ( int i = 0 ; i < m.size(); i++ ) {
+			log.trace("Sector " + i + " contains " + m.get(i).size() + " spaces");			
 		}
 
 		HashSet<Tuple<Integer,Integer>> s = new HashSet<Tuple<Integer,Integer>>();
@@ -327,6 +420,8 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			HashSet<Tuple<Integer,Integer>> v = m.get(in);
 			s.removeAll(v);
 		}
+		/*
+
 		while(!s.isEmpty()){
 			Queue<Tuple<Integer, Integer>> q = new LinkedList<Tuple<Integer,Integer>>();
 			q.add(s.iterator().next());
@@ -363,8 +458,9 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			}
 			m.put(m.size(),x);
 		}
-
+		*/
 		m.put(m.size(), s);
+		log.trace("There are currently " + m.size() + " sectors");
 
 		return m;
 	}
@@ -382,16 +478,15 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		for(int i = 0; i < numLights; i++)
 		{
 			// Retrieve the objective (destination) for the current light
-			Tuple<Integer,Integer> o = objective.get(i);
+			List<Tuple<Integer,Integer>> o = objective.get(i);
 
 
 			// If the objective is null, calculate a new objective
-			if( objective.get(i)==null ||
-					(Math.abs(o.x - lightArr[i].getX()) < epsilon && Math.abs(lightArr[i].getY() - o.y) < epsilon)){
+			if( objective.get(i)==null || o.isEmpty() ) {
 
 				double shortestDistance = 9999;
 				Tuple<Integer,Integer> boardSpace = null;
-				for(Tuple<Integer,Integer> t : sectors.get(i))
+				for(Tuple<Integer,Integer> t : sectors.get(sectorArr[i]) )
 				{
 					double x = Math.pow(t.x-lightArr[i].getX(),2);
 					double y = Math.pow(t.y-lightArr[i].getY(),2);
@@ -422,34 +517,48 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				// If we found a valid boardSpace for the closest mosquito, set that as the new objective
 				// Otherwise, move to the collector
 				if ( boardSpace!=null) {
-					objective.put(i, boardSpace);
+					log.trace("Found a mosquito for Light " + i);
+					objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,boardSpace));
 				} else {
+					//log.trace("Light " + i + " is moving to a new sector");
 					int sector = getSectorWithMostMosquitoes(board);
 					assignedSectors.remove(sectorArr[i]);
-					if ( getMosquitoesInSector(sector, board) > 0 ) {
+					// getSectorWithMostMosquitoes returns 0 by default--it would be better if
+					// we returned an invalid sector, but that causes issues elsewhere
+					if ( sector>=0 && getMosquitoesInSector(sector, board) > 0 ) {
 						assignedSectors.add(sector);
 						sectorArr[i]=sector;
-						objective.put(i, getRandomSpaceInSector(sectors.get(sector)));
+						objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,getRandomSpaceInSector(sectors.get(sector))));
 					} else {
 						// Go to collector
-						objective.put(i, new Tuple<Integer,Integer>(50,51));
+						log.trace("Light " + i + " is moving to the collector");
+						objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,new Tuple<Integer,Integer>(50,51)));
 					}
 				}
-				log.debug("New objective for light " + i +": " + objective.get(i).x + "," + objective.get(i).y);			
+				o=objective.get(i);
+				if ( ! o.isEmpty() ) {
+					//log.debug("New objective for light " + i +": " + objective.get(i).get(0).x + "," + objective.get(i).get(0).y);
+				} else {
+					log.debug("Light " + i + ": Why is the objective list empty?");
+				}
 			}
 
 			// Set the new light position based on the objective
 			o=objective.get(i);
-			log.debug( "Light " + i + " - Objective X:" + o.x + ", Current X:" + lightArr[i].getX() + ", Objective Y:" + o.y + ", Current Y:" + lightArr[i].getY() );
+			Tuple<Integer,Integer> nextStop = o.get(0);
+			//log.debug( "Light " + i + " - Objective X:" + nextStop.x + ", Current X:" + lightArr[i].getX() + ", Objective Y:" + nextStop.y + ", Current Y:" + lightArr[i].getY() );
 
-			if(o.y<lightArr[i].getY())
+			if(nextStop.y<lightArr[i].getY()) 
 				((MoveableLight)lightArr[i]).moveUp();
-			if(o.y>lightArr[i].getY())
+			if(nextStop.y>lightArr[i].getY()) 
 				((MoveableLight)lightArr[i]).moveDown();
-			if(o.x>lightArr[i].getX())
+			if(nextStop.x>lightArr[i].getX())
 				((MoveableLight)lightArr[i]).moveRight();
-			if(o.x<lightArr[i].getX())
+			if(nextStop.x<lightArr[i].getX())
 				((MoveableLight)lightArr[i]).moveLeft();
+			
+			// Remove the old objective
+			o.remove(0);
 		}
 
 		return lights;
@@ -506,7 +615,8 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			int i = Integer.parseInt(s.substring(0,s.indexOf(",")));
 			int j = Integer.parseInt(s.substring(s.indexOf(",")+2, s.length()));
 
-			return (i+1)*100+j;
+			//return (i+1)*100+j;
+			return 1;
 		}
 	}
 
