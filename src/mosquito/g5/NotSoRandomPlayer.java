@@ -2,6 +2,7 @@ package mosquito.g5;
 
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
+import java.awt.geom.Point2D.Double;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -27,13 +28,13 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 	private Point2D.Double lastLight;
 	private Logger log = Logger.getLogger(this.getClass()); // for logging
 	Map<Integer, HashSet<Tuple<Integer,Integer>>> sectors;
-	
+
 	private Set<Light> lights;
 	private Set<Collector> collectors;
 	private Set<Line2D> walls;
 	private Map<Integer,Tuple<Integer,Integer>> objective;
 	private Light[] lightArr;
-	
+
 	/*
 	 * This is called when a new game starts. It is passed the set
 	 * of lines that comprise the different walls, as well as the 
@@ -45,7 +46,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		this.numCollectors = numCollectors;
 		this.walls = walls;
 	}
-	
+
 	@Override
 	public String getName() {
 		return "Not So Random Player";
@@ -87,7 +88,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 					}
 					log.trace("Spaces in sector " + j + ":" + tupleCount);
 					log.trace("Mosquitoes in sector " + j + ":" + mosquitoCount);
-					
+
 					if ( mosquitoCount > mostMosquitoes ) {
 						mostMosquitoes = mosquitoCount;
 						sectorWithMostMosquitoes = j;
@@ -98,7 +99,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				}
 			}
 
-			
+
 			//int x = startingPoint.x;
 			lastLight = new Point2D.Double(startingPoint.x, startingPoint.y);
 			MoveableLight l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
@@ -121,12 +122,12 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		}
 		return (p2.getY() - p1.getY()) / (p2.getX() - p1.getX()) ;
 	}
-	
+
 	public boolean intersectsLines(double x1, double y1, double x2, double y2)
 	{
 		return intersectsLines(new Line2D.Double(x1,y1,x2,y2));
 	}
-	
+
 	public boolean intersectsLines(Line2D l)
 	{
 		for(Line2D x : this.walls)
@@ -136,11 +137,11 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		}
 		return false;
 	}
-	
+
 	public HashMap<Integer, HashSet<Tuple<Integer,Integer>>> getSectors()
 	{
 		HashMap<Integer, HashSet<Tuple<Integer,Integer>>> m =
-				new HashMap<Integer, HashSet<Tuple<Integer,Integer>>>();
+			new HashMap<Integer, HashSet<Tuple<Integer,Integer>>>();
 		//FOR EACH LINE, check angle, make sector vert or horiz based on angle.
 		for(Line2D l : this.walls)
 		{
@@ -155,27 +156,36 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			if(slope > 1 || slope < -1)
 			{
 				//hori 
+				if(p1.getY() > p2.getY())
+				{
+					Point2D.Double t = (Double) p1;
+					p1 = p2;
+					p2 = t;
+				}
+
 				HashSet<Tuple<Integer,Integer>> leftSet = new HashSet<Tuple<Integer,Integer>>();
 				HashSet<Tuple<Integer,Integer>> rightSet = new HashSet<Tuple<Integer,Integer>>();
 				for(int y = (int)(p1.getY()); y < p2.getY(); y++)
 				{
 					for(int x  = (int)((y - p1.getY())/slope ); 
-							x < 100 && !intersectsLines((y - p1.getY())/slope,y,x,y); x++)
+					x >= 0 && x < 100 && !intersectsLines((y - p1.getY())/slope,y,x,y); x++)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						rightSet.add(t);
 					}
 					for(int x  = (int)((y - p1.getY())/slope ); 
-							x > 0 && !intersectsLines((y - p1.getY())/slope,y,x,y); x--)
+					x < 100	&& x >= 0 && !intersectsLines((y - p1.getY())/slope,y,x,y); x--)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						leftSet.add(t);
 					}
 				}
-				m.put(m.size(), leftSet);
-				m.put(m.size(), rightSet);
+				if(leftSet.size()>0)
+					m.put(m.size(), leftSet);
+				if(rightSet.size()>0)
+					m.put(m.size(), rightSet);
 
 			}
 			else
@@ -186,22 +196,24 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				for(int x = (int)(p1.getX()); x < p2.getX(); x++)
 				{
 					for(int y  = (int)(x * slope + p1.getY()); 
-							y < 100 && !intersectsLines(x,(x * slope + p1.getY()),x,y); y++)
+					y >= 0 && y < 100 && !intersectsLines(x,(x * slope + p1.getY()),x,y); y++)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						downSet.add(t);
 					}
 					for(int y  = (int)(x * slope + p1.getY()); 
-							y > 0 && !intersectsLines(x,(x * slope + p1.getY()),x,y); y--)
+					y>100 && y >= 0 && !intersectsLines(x,(x * slope + p1.getY()),x,y); y--)
 					{
 						//add (x,y) to the sector
 						Tuple<Integer,Integer> t = new Tuple<Integer, Integer>(x,y);
 						upSet.add(t);
 					}
 				}
-				m.put(m.size(), downSet);
-				m.put(m.size(), upSet);
+				if(downSet.size() > 0)
+					m.put(m.size(), downSet);
+				if(downSet.size() > 0)
+					m.put(m.size(), upSet);
 			}
 		}
 
@@ -222,6 +234,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		while(!s.isEmpty()){
 			Queue<Tuple<Integer, Integer>> q = new LinkedList<Tuple<Integer,Integer>>();
 			q.add(s.iterator().next());
+			s.remove(q.peek());
 			HashSet<Tuple<Integer,Integer>> x = new HashSet<Tuple<Integer,Integer>>();
 			while(!q.isEmpty()){
 				Tuple<Integer,Integer> t =q.poll();
@@ -254,7 +267,7 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			}
 			m.put(m.size(),x);
 		}
-		
+
 		m.put(m.size(), s);
 
 		return m;
@@ -362,16 +375,33 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			this.x=x;
 			this.y=y;
 		}
-		
+
+		public String toString(){
+			return "<" + x + ", " + y + ">";
+		}
+
 		@SuppressWarnings("unchecked")
 		@Override
 		public boolean equals(Object obj) 
 		{
-			if(x.equals(((Tuple<X,Y>)obj).x) && y.equals(((Tuple<X,Y>)obj).y))
-			{
-				return true;
+			if (obj instanceof Tuple<?,?>) {
+
+				if(x.equals(((Tuple<X,Y>)obj).x) && y.equals(((Tuple<X,Y>)obj).y))
+				{
+					return true;
+				}
 			}
 			return false;
+		}
+		@Override
+		public int hashCode()
+		{
+			String s = toString();
+			s = s.substring(1,s.length()-1);
+			int i = Integer.parseInt(s.substring(0,s.indexOf(",")));
+			int j = Integer.parseInt(s.substring(s.indexOf(",")+2, s.length()));
+
+			return (i+1)*100+j;
 		}
 	}
 
