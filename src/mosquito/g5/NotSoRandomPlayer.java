@@ -76,9 +76,10 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 	 * so as not to lose mosquitoes
 	 */
 	public boolean nearEndpoints( Tuple<Integer,Integer> node ) {
+		int room = 5;
 		for(Line2D wall : this.walls)
 		{
-			if ( Math.abs(node.x - wall.getP1().getX()) + Math.abs(node.y - wall.getP1().getY()) < 10 ) {
+			if ( (Math.abs(node.x - wall.getP1().getX()) + Math.abs(node.y - wall.getP1().getY()) < room) || (Math.abs(node.x - wall.getP2().getX()) + Math.abs(node.y - wall.getP2().getY()) < room ))  {
 				return true;
 			}
 		}
