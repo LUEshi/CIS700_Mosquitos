@@ -24,7 +24,7 @@ import mosquito.sim.MoveableLight;
 public class NotSoRandomPlayer extends mosquito.sim.Player {
 
 	private final double epsilon = .00001;
-
+	private int currentMove = 0;
 	private int numLights;
 	private int numCollectors;
 	private Point2D.Double lastLight;
@@ -466,6 +466,29 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 		return m;
 	}
 
+	public boolean allMosquitoesCaptured(int[][] board) {
+		boolean captured = true;
+		for ( int i = 0; i < 100; i++ ) {
+			for ( int j = 0; j < 100; j++ ) { 
+				if ( board[i][j] > 0 ) {
+					boolean capturedByLight = false;
+					for ( Light light : lights ) {
+						double x = Math.pow(i-light.getX(),2);
+						double y = Math.pow(j-light.getY(),2);
+						double distance = Math.pow(x+y,.5);
+						if( distance < 20 ) {
+							capturedByLight = true;
+						}
+					}
+					if ( !capturedByLight ) {
+						captured = false;
+					}
+				}
+			}
+		}
+		return captured;
+	}
+	
 
 	/*
 	 * This is called at the beginning of each step (before the mosquitoes have moved)
@@ -475,6 +498,8 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 	 * number of mosquitoes at coordinate (x, y)
 	 */
 	public Set<Light> updateLights(int[][] board) {
+		currentMove++;
+		if ( currentMove % 2 == 0 ) {
 
 		for(int i = 0; i < numLights; i++)
 		{
@@ -517,24 +542,28 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 				}
 				// If we found a valid boardSpace for the closest mosquito, set that as the new objective
 				// Otherwise, move to the collector
-				if ( boardSpace!=null) {
-					log.trace("Found a mosquito for Light " + i);
-					objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,boardSpace));
-				} else {
-					//log.trace("Light " + i + " is moving to a new sector");
-					int sector = getSectorWithMostMosquitoes(board);
-					assignedSectors.remove(sectorArr[i]);
-					// getSectorWithMostMosquitoes returns 0 by default--it would be better if
-					// we returned an invalid sector, but that causes issues elsewhere
-					if ( sector>=0 && getMosquitoesInSector(sector, board) > 0 ) {
-						assignedSectors.add(sector);
-						sectorArr[i]=sector;
-						objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,getRandomSpaceInSector(sectors.get(sector))));
+				
+					if ( boardSpace!=null) {
+						log.trace("Found a mosquito for Light " + i);
+						objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,boardSpace));
 					} else {
-						// Go to collector
-						log.trace("Light " + i + " is moving to the collector");
-						objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,new Tuple<Integer,Integer>(50,51)));
-					}
+						//log.trace("Light " + i + " is moving to a new sector");
+						int sector = getSectorWithMostMosquitoes(board);
+						assignedSectors.remove(sectorArr[i]);
+						// getSectorWithMostMosquitoes returns 0 by default--it would be better if
+						// we returned an invalid sector, but that causes issues elsewhere
+						if ( sector>=0 && getMosquitoesInSector(sector, board) > 0 ) {
+							assignedSectors.add(sector);
+							sectorArr[i]=sector;
+							objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,getRandomSpaceInSector(sectors.get(sector))));
+						} else {
+							// Go to collector
+							log.trace("Light " + i + " is moving to the collector");
+							objective.put(i, aStar( new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ,new Tuple<Integer,Integer>(50,52)));
+							for ( int n = 0; n < 500; n++ ) {
+								objective.get(i).add(new Tuple<Integer,Integer>(50,52));
+							}
+						}
 				}
 				o=objective.get(i);
 				if ( ! o.isEmpty() ) {
@@ -549,6 +578,10 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			Tuple<Integer,Integer> nextStop = o.get(0);
 			//log.debug( "Light " + i + " - Objective X:" + nextStop.x + ", Current X:" + lightArr[i].getX() + ", Objective Y:" + nextStop.y + ", Current Y:" + lightArr[i].getY() );
 
+			if ( allMosquitoesCaptured(board) ) {
+				nextStop = new Tuple<Integer,Integer>(50,52);
+			}			
+			
 			if(nextStop.y<lightArr[i].getY()) 
 				((MoveableLight)lightArr[i]).moveUp();
 			if(nextStop.y>lightArr[i].getY()) 
@@ -561,7 +594,8 @@ public class NotSoRandomPlayer extends mosquito.sim.Player {
 			// Remove the old objective
 			o.remove(0);
 		}
-
+		}
+		
 		return lights;
 	}
 
