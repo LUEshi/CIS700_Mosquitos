@@ -438,12 +438,10 @@ public class LazyPlayer extends mosquito.sim.Player {
 	}
 
 	public List<Tuple<Integer,Integer>> leastEncumbered( int[][] mosqBoard ) {
-		List<Tuple<Integer,Integer>> rank = new ArrayList();
+		List<Tuple<Integer,Integer>> rank = new ArrayList<Tuple<Integer,Integer>>();
 		boolean[][] board = getValidBoard(mosqBoard, 0 );
 		int[][] quadrantCount = new int[2][2];
 
-		Tuple<Integer,Integer> corner1 = new Tuple<Integer,Integer>(0,0);
-		
 		for ( int i = 0; i<2; i++ ) {
 			for ( int j = 0; j<2; j++ ) {
 				int wallCount = 0;
@@ -458,18 +456,21 @@ public class LazyPlayer extends mosquito.sim.Player {
 			}
 		}
 
-		int largest = Integer.MIN_VALUE;
-		for ( int i = 0; i<2; i++ ) {
-			for ( int j = 0; j<2; j++ ) {
-				if ( quadrantCount[i][j] > largest ) {
-					largest = i+j;
+		// repeat four times
+		for ( int q = 0; q < 4; q ++ ) {
+			int smallest = Integer.MAX_VALUE;
+			for ( int i = 0; i<2; i++ ) {
+				for ( int j = 0; j<2; j++ ) {
+					if ( quadrantCount[i][j] < smallest ) {
+						smallest = i+j;
+					}
 				}
 			}
+			quadrantCount[smallest/2][smallest%2] = Integer.MAX_VALUE;
+			rank.add(new Tuple<Integer,Integer>(25+(smallest/2)*50,25+(smallest%2)*50));			
 		}
-		rank.add(e)
-		
-		
-		return null;
+	
+		return rank;
 	}
 
 
