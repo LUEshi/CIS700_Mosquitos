@@ -454,8 +454,8 @@ public class BFSPlayer extends mosquito.sim.Player {
 	
 
 	public List<Tuple<Integer,Integer>> reconstructPath ( HashMap<Tuple<Integer,Integer>,Tuple<Integer,Integer>> cameFrom, Tuple<Integer,Integer> currentNode ) {
-		int delayNearEndpoints = 6;
-		int roomNearEndpoints = 4;
+		int delayNearEndpoints = 3;
+		int roomNearEndpoints = 3;
 		
 		//log.trace("reconstructPath: cameFrom size:" + cameFrom.size() );
 		List<Tuple<Integer,Integer>> path = new ArrayList<Tuple<Integer,Integer>>();
@@ -708,7 +708,6 @@ public class BFSPlayer extends mosquito.sim.Player {
 				return true;
 			}
 		}
-		log.debug("Position is not captured!");
 		return false;
 	}
 	
