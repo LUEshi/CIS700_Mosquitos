@@ -55,7 +55,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 
 	@Override
 	public String getName() {
-		return "BFS Player";
+		return "Lazy Player";
 	}
 
 
@@ -476,14 +476,18 @@ public class LazyPlayer extends mosquito.sim.Player {
 			for ( int i = 0; i<2; i++ ) {
 				for ( int j = 0; j<2; j++ ) {
 					if ( quadrantCount[i][j] < smallest ) {
-						smallest = i+j;
+						smallest = i*10+j;
 					}
 				}
 			}
-			quadrantCount[smallest/2][smallest%2] = Integer.MAX_VALUE;
-			rank.add(new Tuple<Integer,Integer>(25+(smallest/2)*50,25+(smallest%2)*50));			
+			quadrantCount[smallest/10][smallest%10] = Integer.MAX_VALUE;
+			rank.add(new Tuple<Integer,Integer>(25+(smallest/10)*50,25+(smallest%10)*50));
 		}
-	
+
+		for ( Tuple<Integer,Integer> r : rank ) {
+			log.trace("Rank:" + rank);
+		}
+		
 		return rank;
 	}
 
