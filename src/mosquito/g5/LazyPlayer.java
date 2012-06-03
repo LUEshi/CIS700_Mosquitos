@@ -55,7 +55,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 
 	@Override
 	public String getName() {
-		return "BFS Player";
+		return "Lazy Player";
 	}
 
 
@@ -192,8 +192,8 @@ public class LazyPlayer extends mosquito.sim.Player {
 	}
 
 	public double getDistance ( double x1, double y1, double x2, double y2 ) {
-		double a = x1-x2;
-		double b = y1-y2;
+		double a = Math.abs(x1-x2);
+		double b = Math.abs(y1-y2);
 		double cSquared = (Math.pow(a, 2) + Math.pow(b, 2));
 		return Math.pow(cSquared, .5);
 	}
@@ -476,14 +476,31 @@ public class LazyPlayer extends mosquito.sim.Player {
 			for ( int i = 0; i<2; i++ ) {
 				for ( int j = 0; j<2; j++ ) {
 					if ( quadrantCount[i][j] < smallest ) {
-						smallest = i*2+j;
+
+						smallest = i*10+j;
 					}
 				}
 			}
-			quadrantCount[smallest/2][smallest%2] = Integer.MAX_VALUE;
-			rank.add(new Tuple<Integer,Integer>(25+(smallest/2)*50,25+(smallest%2)*50));			
+			quadrantCount[smallest/10][smallest%10] = Integer.MAX_VALUE;
+			int x, y;
+			if(smallest/10 == 0)
+				x = 20+(smallest/10)*50;
+			else
+				x = 30+(smallest/10)*50;
+			
+			if(smallest%10 == 0)
+				y = 20+(smallest%10)*50;
+			else
+				y = 30+(smallest%10)*50;
+			
+			rank.add(new Tuple<Integer,Integer>(x,y));
+
 		}
-	
+
+		for ( Tuple<Integer,Integer> r : rank ) {
+			log.trace("Rank:" + rank);
+		}
+		
 		return rank;
 	}
 
@@ -511,17 +528,17 @@ public class LazyPlayer extends mosquito.sim.Player {
 
 		//need to make a path of lights from first light to goal
 		//make adjacency list to find build graph to find levels later
-		while(getDistance(lightList.get(0),corners.get(1))> 20  && lightList.size() < this.numLights )
+		while(getDistance(lightList.get(lightList.size()-1),corners.get(1))> 20  && lightList.size() < this.numLights )
 		{	
 			Tuple<Integer,Integer> next = null;
 			double minDist = Integer.MAX_VALUE;
+			double cartMin = Integer.MAX_VALUE;
 			for(double a = 0; a < Math.PI * 2; a+=Math.PI/10)
 			{
 				int x1 = lightList.get(lightList.size()-1).x;
 				int y1 = lightList.get(lightList.size()-1).y;
 				double x2 = x1 + radius * Math.cos(a);
 				double y2 = y1 + radius * Math.sin(a);
-				log.trace(x2 + " " + y2);
 				if(Math.round(x2)>99 || Math.round(x2)<0 
 						|| Math.round(y2)>99 || Math.round(y2)<0 
 						|| !validBoard[(int)Math.round(x2)][(int)Math.round(y2)] 
@@ -530,11 +547,14 @@ public class LazyPlayer extends mosquito.sim.Player {
 					continue;
 				
 				Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
-				List<Tuple<Integer,Integer>> as = aStar(lightList.get(lightList.size()-1),possibleNext);
+				List<Tuple<Integer,Integer>> as = aStar(possibleNext, corners.get(1));
 				double d = as == null ? Integer.MAX_VALUE : as.size();
-				if(d<minDist)
+//				double c = getDistance(lightList.get(lightList.size()-1).x,lightList.get(lightList.size()-1).y,
+//						corners.get(1).x,corners.get(1).y);
+				if(d<=minDist /*&& c<cartMin*/)
 				{
 					minDist = d;
+//					cartMin = c;
 					next = possibleNext; 
 				}
 			}
@@ -543,12 +563,15 @@ public class LazyPlayer extends mosquito.sim.Player {
 			lightList.add(next);
 		}
 		//if lights left, find best starting point and make a path from there
-		int best = -1;
+
+				int best = -1;
 		double dist = Integer.MAX_VALUE;
+		if(!validBoard[corners.get(2).x][corners.get(2).y])
+			corners.get(2).x--;
 		for(int i = 0; i<lightList.size();i++)
 		{
-			Tuple<Integer,Integer> t = lightList.get(0);
-			List<Tuple<Integer,Integer>> as = aStar(lightList.get(lightList.size()-1),corners.get(2));
+			Tuple<Integer,Integer> t = lightList.get(i);
+			List<Tuple<Integer,Integer>> as = aStar(lightList.get(i),corners.get(2));
 			double d = as == null ? Integer.MAX_VALUE : as.size();
 			if(d<dist)
 			{
@@ -556,10 +579,14 @@ public class LazyPlayer extends mosquito.sim.Player {
 				best= i; 
 			}
 		}
+		//swap
+		lightList.add(lightList.get(best));
+		lightList.remove(best);
+		log.trace("Best: " + lightList.get(best).x + " " + lightList.get(best).y);
+		log.trace("Best: " + corners.get(2).x + " " + corners.get(2).y);
 
-		
 		//TODO: integrat this part with the previous one to reduce repeating code
-		while(getDistance(lightList.get(best),corners.get(2))> 20  && lightList.size() < this.numLights )
+		while(getDistance(lightList.get(lightList.size()-1),corners.get(2))> 20  && lightList.size() < this.numLights )
 		{	
 			Tuple<Integer,Integer> next = null;
 			double minDist = Integer.MAX_VALUE;
@@ -576,7 +603,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 						|| lightList.contains(new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2))))
 					continue;
 				Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
-				List<Tuple<Integer,Integer>> as = aStar(lightList.get(lightList.size()-1),possibleNext);
+				List<Tuple<Integer,Integer>> as = aStar(possibleNext,corners.get(2));
 				double d = as == null ? Integer.MAX_VALUE : as.size();
 				if(d<minDist)
 				{
@@ -588,7 +615,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 			log.trace("adding light at " + next.x + ", " + next.y);
 			lightList.add(next);
 		}
-		
+	
 		//find light times
 
 		for(Tuple<Integer,Integer> t : lightList)
@@ -695,8 +722,8 @@ public class LazyPlayer extends mosquito.sim.Player {
 
 	private class Tuple<X,Y>
 	{
-		public final X x;
-		public final Y y;
+		public X x;
+		public Y y;
 		public Tuple(X x, Y y)
 		{
 			this.x=x;
