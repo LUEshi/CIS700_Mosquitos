@@ -36,10 +36,10 @@ public class LazyPlayer extends mosquito.sim.Player {
 	private Map<Integer,List<Tuple<Integer,Integer>>> objective;
 	private Light[] lightArr;
 	private boolean[][] validBoard;
-	private int defaultEndpointBufferSize = 2;
-	private int currentEndpointBufferSize = 2;
-	private int defaultWallOffset = 2;
-	private int currentWallOffset = 2;
+	private int defaultEndpointBufferSize = 0;
+	private int currentEndpointBufferSize = 0;
+	private int defaultWallOffset = 0;
+	private int currentWallOffset = 0;
 
 	/*
 	 * This is called when a new game starts. It is passed the set
@@ -583,7 +583,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		lightList.add(lightList.get(best));
 		lightList.remove(best);
 		log.trace("Best: " + lightList.get(best).x + " " + lightList.get(best).y);
-		log.trace("Best: " + corners.get(2).x + " " + corners.get(2).y);
+		log.trace("Goal: " + corners.get(2).x + " " + corners.get(2).y);
 
 		//TODO: integrat this part with the previous one to reduce repeating code
 		while(getDistance(lightList.get(lightList.size()-1),corners.get(2))> 20  && lightList.size() < this.numLights )
@@ -616,6 +616,60 @@ public class LazyPlayer extends mosquito.sim.Player {
 			lightList.add(next);
 		}
 	
+		best = -1;
+		dist = Integer.MAX_VALUE;
+		if(!validBoard[corners.get(3).x][corners.get(3).y])
+			corners.get(3).x--;
+		for(int i = 0; i<lightList.size();i++)
+		{
+			Tuple<Integer,Integer> t = lightList.get(i);
+			List<Tuple<Integer,Integer>> as = aStar(lightList.get(i),corners.get(3));
+			double d = as == null ? Integer.MAX_VALUE : as.size();
+			if(d<dist)
+			{
+				dist = d;
+				best= i; 
+			}
+		}
+		//swap
+		lightList.add(lightList.get(best));
+		lightList.remove(best);
+		log.trace("Best: " + lightList.get(best).x + " " + lightList.get(best).y);
+		log.trace("Goal: " + corners.get(3).x + " " + corners.get(3).y);
+		
+		//TODO: integrat this part with the previous one to reduce repeating code
+		while(getDistance(lightList.get(lightList.size()-1),corners.get(3))> 20  && lightList.size() < this.numLights )
+		{	
+			Tuple<Integer,Integer> next = null;
+			double minDist = Integer.MAX_VALUE;
+			for(double a = 0; a < Math.PI * 2; a+=Math.PI/10)
+			{
+				int x1 = lightList.get(lightList.size()-1).x;
+				int y1 = lightList.get(lightList.size()-1).y;
+				double x2 = x1 + radius * Math.cos(a);
+				double y2 = y1 + radius * Math.sin(a);
+				if(Math.round(x2)>99 || Math.round(x2)<0 
+						|| Math.round(y2)>99 || Math.round(y2)<0 
+						|| !validBoard[(int)Math.round(x2)][(int)Math.round(y2)] 
+						|| this.intersectsLines(x1, y1, x2, y2)
+						|| lightList.contains(new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2))))
+					continue;
+				Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
+				List<Tuple<Integer,Integer>> as = aStar(possibleNext,corners.get(3));
+				double d = as == null ? Integer.MAX_VALUE : as.size();
+				if(d<minDist)
+				{
+					minDist = d;
+					next = possibleNext; 
+				}
+			}
+			if(next == null) log.error("next should not be null");
+			log.trace("adding light at " + next.x + ", " + next.y);
+			lightList.add(next);
+		}
+
+
+		
 		//find light times
 
 		for(Tuple<Integer,Integer> t : lightList)
