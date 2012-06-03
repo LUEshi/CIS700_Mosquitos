@@ -16,7 +16,6 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 
-import mosquito.g5.BFSPlayer.Tuple;
 import mosquito.sim.Collector;
 import mosquito.sim.Light;
 import mosquito.sim.MoveableLight;
