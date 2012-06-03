@@ -40,7 +40,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 	private int currentEndpointBufferSize = 0;
 	private int defaultWallOffset = 0;
 	private int currentWallOffset = 0;
-	
+
 	/*
 	 * This is called when a new game starts. It is passed the set
 	 * of lines that comprise the different walls, as well as the 
@@ -58,15 +58,15 @@ public class LazyPlayer extends mosquito.sim.Player {
 		return "BFS Player";
 	}
 
-	
+
 	public List<Tuple<Integer,Integer>> allPointsInLine ( Line2D line ) {
 		ArrayList<Tuple<Integer,Integer>> points = new ArrayList<Tuple<Integer,Integer>>();
 		double x1 = line.getX1();
-		
-		
+
+
 		return points;
 	}
-	
+
 	public boolean isLineVertical( Line2D line ) {
 		return ( line.getX1() == line.getX2() );
 	}
@@ -74,12 +74,12 @@ public class LazyPlayer extends mosquito.sim.Player {
 	public boolean isLineHorizontal( Line2D line ) {
 		return ( line.getY1() == line.getY2() );
 	}
-	
-	
+
+
 	public boolean[][] getValidBoard(int[][] board) {
 		return getValidBoard (board, this.currentWallOffset);	
 	}
-	
+
 	public boolean[][] getValidBoard ( int[][] board, int offset ) {
 		log.trace("Creating validBoard based on walls present");
 		boolean[][] v = new boolean[100][100];
@@ -91,7 +91,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		}
 		// Loop over all walls and add remove the board spaces they pass through from v
 		for ( Line2D wall : walls ) {
-			
+
 			// If buffer is too high, mosquitoes get caught in a buffer zone
 			// Also, on some mazes, the walls may be too close together
 			if ( !isLineVertical(wall) ) {
@@ -115,7 +115,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 					double currentY = startY + slope*i;
 					if ( currentX >= 0 && currentX < 100 && currentY >= 0 && currentY < 100 ) {
 						v[(int) currentX][(int) currentY] = false;
-						
+
 						// todo: fix this hack
 						for ( int buffer = offset*(-1); buffer <= offset; buffer++ ) {
 							if ( currentY-buffer >= 0 && currentY-buffer < 100  )
@@ -123,7 +123,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 							if ( currentY+buffer >= 0 && currentY+buffer < 100 )
 								v[(int) currentX][((int) currentY)+buffer] = false;
 						}
-						
+
 					} else {
 						log.debug("Tried to mark position (" + currentX + "," + currentY + ") but it was not valid");
 					}
@@ -152,23 +152,23 @@ public class LazyPlayer extends mosquito.sim.Player {
 								v[((int) currentX)+buffer][(int) currentY] = false;
 						}
 
-					
+
 					} else {
 						log.debug("Tried to mark position (" + currentX + "," + currentY + ") but it was not valid");
 					}
 				}
 
-			
-			
+
+
 			}
 		}
 
 		// print v
 		printBoard(v,null);
-		
+
 		return v;
 	}
-	
+
 	public void printBoard( boolean[][] b, Tuple<Integer,Integer> currentLight ) {
 		for ( int i = 0; i < 100; i++ ) {
 			for ( int j = 0; j < 100; j++ ) {
@@ -186,15 +186,15 @@ public class LazyPlayer extends mosquito.sim.Player {
 			System.err.println( );
 		}		
 	}
-	
+
 	public double getDistance( Tuple<Integer,Integer> p1, Tuple<Integer,Integer> p2 ) {
 		return getDistance( p1.x, p1.y, p2.x, p2.y );		
 	}
 
-	public double getDistance ( int x1, int y1, int x2, int y2 ) {
-		int a = Math.abs(x1-x2);
-		int b = Math.abs(y1-y2);
-		int cSquared = (int) (Math.pow(a, 2) + Math.pow(b, 2));
+	public double getDistance ( double x1, double y1, double x2, double y2 ) {
+		double a = x1-x2;
+		double b = y1-y2;
+		double cSquared = (Math.pow(a, 2) + Math.pow(b, 2));
 		return Math.pow(cSquared, .5);
 	}
 
@@ -207,7 +207,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		int b = Math.abs(y1-y2);
 		return a+b;
 	}
-	
+
 	public int wallCount( boolean[][] b ) {
 		int count = 0;
 		for ( int i = 0; i < 100; i++ ) {
@@ -219,10 +219,10 @@ public class LazyPlayer extends mosquito.sim.Player {
 		}
 		return count;
 	}
-	
+
 
 	public Tuple<Integer,Integer> getClosestInSight( int[][] mosquitoBoard, Tuple<Integer,Integer> currentLightPosition ) {
-		
+
 		// clone valid board
 		boolean[][] bfsBoard = new boolean[100][100];
 		for ( int i = 0; i < 100; i++ ) {
@@ -230,18 +230,18 @@ public class LazyPlayer extends mosquito.sim.Player {
 				bfsBoard[i][j] = this.validBoard[i][j];
 			}
 		}
-		
+
 		return getClosestInSight(mosquitoBoard,bfsBoard,currentLightPosition);	
 	}
-	
-	
+
+
 	public Tuple<Integer,Integer> getClosestInSight( int[][] mosquitoBoard, boolean[][] gameBoard, Tuple<Integer,Integer> currentLightPosition ) {
-		
+
 		LinkedList<Tuple<Integer,Integer>> q = new LinkedList<Tuple<Integer,Integer>>();
-		
+
 		q.add( currentLightPosition );
 		gameBoard[ currentLightPosition.x ][ currentLightPosition.y ] = false;
-		
+
 		while ( !q.isEmpty() ) {
 			Tuple<Integer,Integer> t = q.poll();
 			//log.debug(t + ", mosquitoes:"+ mosquitoBoard[t.x][t.y] + ", distance:" + getDistance(t,currentLightPosition) + ", captured? " + isPositionCaptured(t));
@@ -298,26 +298,26 @@ public class LazyPlayer extends mosquito.sim.Player {
 		}
 		return false;
 	}
-	
-	
+
+
 	public boolean isValidSpace (Tuple<Integer,Integer> t) {
 		return (t.x>=0 && t.x<100 && t.y>=0 && t.y<100);
 	}
-	
-	
+
+
 	public HashSet<Tuple<Integer,Integer>> getNeighborNodes( Tuple<Integer,Integer> node, boolean[][] gameBoard ) {
 		HashSet<Tuple<Integer,Integer>> neighbors = new HashSet<Tuple<Integer,Integer>>();
 		for ( int x = -1; x <= 1; x++ ) {
 			for ( int y = -1; y <=1; y++ ) {
 				// exclude diagonals
-//				if ( x==0 || y==0 ) {
-					Tuple<Integer,Integer> neighbor = new Tuple<Integer,Integer>(node.x+x,node.y+y);
-					if ( isValidSpace(neighbor) && !(x==0 && y==0) 
-							&& gameBoard[neighbor.x][neighbor.y] 
-							&& ( !nearEndpoints(neighbor) ) ) {
-						neighbors.add(neighbor);
-					}
-//				}
+				//				if ( x==0 || y==0 ) {
+				Tuple<Integer,Integer> neighbor = new Tuple<Integer,Integer>(node.x+x,node.y+y);
+				if ( isValidSpace(neighbor) && !(x==0 && y==0) 
+						&& gameBoard[neighbor.x][neighbor.y] 
+						                         && ( !nearEndpoints(neighbor) ) ) {
+					neighbors.add(neighbor);
+				}
+				//				}
 			}
 		}
 		return neighbors;
@@ -327,7 +327,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		return getNeighborNodes( node, this.validBoard );
 	}
 
-	
+
 
 	public List<Tuple<Integer,Integer>> reconstructPath ( HashMap<Tuple<Integer,Integer>,Tuple<Integer,Integer>> cameFrom, Tuple<Integer,Integer> currentNode ) {
 		//log.trace("reconstructPath: cameFrom size:" + cameFrom.size() );
@@ -342,7 +342,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 					path.add(currentNode);
 				}
 			}
-			*/
+			 */
 			return path;
 		} else {
 			path.add(currentNode);
@@ -353,7 +353,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 					path.add(currentNode);
 				}
 			}
-			*/
+			 */
 			return path;
 		}
 	}
@@ -411,7 +411,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 
 
 			HashSet<Tuple<Integer,Integer>> neighbor_nodes = getNeighborNodes(current);
-//			log.trace("Neighboring nodes: " + neighbor_nodes.size());
+			//			log.trace("Neighboring nodes: " + neighbor_nodes.size());
 			// for each neighbor in neighbor_nodes(current)
 			for ( Tuple<Integer,Integer> neighbor : neighbor_nodes ) {
 				// if neighbor in closedset
@@ -420,10 +420,10 @@ public class LazyPlayer extends mosquito.sim.Player {
 
 				int tentative_g_score = g_score.get(current) + 1;
 
-//				log.trace("Open set size:" + openSet.size());
+				//				log.trace("Open set size:" + openSet.size());
 				if ( !openSet.contains(neighbor) || tentative_g_score < g_score.get(neighbor) ) { 
 					// add neighbor to openset
-//					log.trace("adding a neighbor to openSet with tentative_g_score" + tentative_g_score);
+					//					log.trace("adding a neighbor to openSet with tentative_g_score" + tentative_g_score);
 					openSet.add(neighbor);
 					cameFrom.put(neighbor, current);
 					g_score.put(neighbor, tentative_g_score);
@@ -443,7 +443,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		int[][] quadrantCount = new int[2][2];
 
 		Tuple<Integer,Integer> corner1 = new Tuple<Integer,Integer>(0,0);
-		
+
 		for ( int i = 0; i<2; i++ ) {
 			for ( int j = 0; j<2; j++ ) {
 				int wallCount = 0;
@@ -466,9 +466,9 @@ public class LazyPlayer extends mosquito.sim.Player {
 				}
 			}
 		}
-		rank.add(e)
-		
-		
+		//rank.add(e)
+
+
 		return null;
 	}
 
@@ -480,8 +480,6 @@ public class LazyPlayer extends mosquito.sim.Player {
 	 * number of mosquitoes at coordinate (x, y)
 	 */
 	public Set<Light> getLights(int[][] board) {
-		// Initially place the lights randomly, and put the collector next to the last light
-
 		this.validBoard = getValidBoard(board);
 
 		lights = new HashSet<Light>();
@@ -489,29 +487,43 @@ public class LazyPlayer extends mosquito.sim.Player {
 		lightArr = new Light[numLights];
 		Random r = new Random();
 
+		double radius = 18.5; 
+		List<Tuple<Integer,Integer>> corners = leastEncumbered(board);
+		List<Tuple<Integer,Integer>> lightList = new ArrayList<Tuple<Integer,Integer>>();
 
-		for(int i=0; i<numLights;i++)
-		{
+		//place first light
+		lightList.add(corners.get(0));
 
-			Tuple<Integer,Integer> startingPoint = null;
-
-			// this player just picks random points for the Light
-			lastLight = new Point2D.Double(r.nextInt(100), r.nextInt(100));
-			startingPoint = new Tuple<Integer,Integer>((int) lastLight.x, (int) lastLight.y);
-			
-			// Make sure we're not starting out on a line or in a buffer zone
-			while ( !this.validBoard[startingPoint.x][startingPoint.y] ) {
-				lastLight = new Point2D.Double(r.nextInt(100), r.nextInt(100));
-				startingPoint = new Tuple<Integer,Integer>((int) lastLight.x, (int) lastLight.y);
+		//need to make a path of lights from first light to goal
+		//make adjacency list to find build graph to find levels later
+		while(getDistance(lightList.get(0),corners.get(1))> 20)
+		{	
+			Tuple<Integer,Integer> next = null;
+			double minDist = Integer.MAX_VALUE;
+			for(double a = 0; a < Math.PI * 2; a+=Math.PI/10)
+			{
+				int x1 = lightList.get(lightList.size()).x;
+				int y1 = lightList.get(lightList.size()).y;
+				double x2 = x1 + radius * Math.cos(a);
+				double y2 = y1 + radius * Math.sin(a);
+				Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
+				double d = aStar(lightList.get(lightList.size()),possibleNext).size();
+				if(d<minDist)
+				{
+					minDist = d;
+					next = possibleNext; 
+				}
 			}
-			
-			lastLight = new Point2D.Double(startingPoint.x, startingPoint.y);
-			MoveableLight l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
-			log.trace("Positioned a light at (" + lastLight.getX() + ", " + lastLight.getY() + ")");
-			lights.add(l);
-			lightArr[i]=l;
+			if(next == null) log.error("next should not be null");
+			lightList.add(next);
+		}
+		//if lights left, find best starting point and make a path from there
 
-			objective.put(i, null);
+		//find light times
+
+		for(Tuple<Integer,Integer> t : lightList)
+		{
+			lights.add(new Light(t.x,t.y,100,0,100));
 		}
 
 		return lights;
@@ -540,7 +552,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		}
 		return false;
 	}
-	
+
 
 	/*
 	 * isPositionCaptured
@@ -558,7 +570,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		log.debug("Position is not captured!");
 		return false;
 	}
-	
+
 
 	public boolean allMosquitoesCaptured(int[][] board) {
 		boolean captured = true;
@@ -582,7 +594,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		}
 		return captured;
 	}
-	
+
 
 	/*
 	 * This is called at the beginning of each step (before the mosquitoes have moved)

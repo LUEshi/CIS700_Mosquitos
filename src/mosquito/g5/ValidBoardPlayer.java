@@ -43,7 +43,7 @@ public class ValidBoardPlayer extends mosquito.sim.Player {
 	//pre: createValidBoard() has been called
 	public boolean isValid(int x, int y)
 	{
-		
+		return false;
 	}
 	
 	public boolean[][] createValidBoard( int[][] board ) {
