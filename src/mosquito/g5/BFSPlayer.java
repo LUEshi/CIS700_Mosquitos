@@ -177,7 +177,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 		}
 
 		// print v
-		printBoard(v,null);
+		//printBoard(v,null);
 		
 		return v;
 	}
@@ -275,6 +275,23 @@ public class BFSPlayer extends mosquito.sim.Player {
 		return rank;
 	}
 
+	
+	public Tuple<Integer,Integer> getAnyUncapturedMosquito ( int[][] board ) {
+		Tuple<Integer,Integer> mosquito = null;
+		for ( int i = 0; i<100; i++ ) {
+			for ( int j = 0; j<100; j++ ) {
+				if ( board[i][j] > 0 ) {
+					Tuple<Integer,Integer> position = new Tuple<Integer,Integer>(i,j);
+					if ( !isPositionCaptured(position) ) {
+						mosquito = position;
+						return mosquito;
+					}
+				}
+			}
+		}
+		return mosquito;
+	}
+	
 	/*
 	 * Returns # of mosquitoes on the board
 	 */
@@ -324,6 +341,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 		q.add( currentLightPosition );
 		gameBoard[ currentLightPosition.x ][ currentLightPosition.y ] = false;
 		
+		// BFS
 		while ( !q.isEmpty() ) {
 			Tuple<Integer,Integer> t = q.poll();
 			//log.debug(t + ", mosquitoes:"+ mosquitoBoard[t.x][t.y] + ", distance:" + getDistance(t,currentLightPosition) + ", captured? " + isPositionCaptured(t));
@@ -345,7 +363,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 		}
 
-		printBoard(gameBoard, currentLightPosition);
+		//printBoard(gameBoard, currentLightPosition);
 		return null;		
 	}
 
@@ -365,9 +383,9 @@ public class BFSPlayer extends mosquito.sim.Player {
 		// Manhattan distance
 		if ( nearEndpoints(goal) ) {
 			// Make travel near endpoints more expensive
-			return 10*Math.abs(start.x-goal.x) + Math.abs(start.y-goal.y);
+			return 10000 * getManhattanDistance(start, goal);
 		} else {
-			return Math.abs(start.x-goal.x) + Math.abs(start.y-goal.y);
+			return getManhattanDistance(start, goal);
 		}
 	}
 
@@ -412,10 +430,10 @@ public class BFSPlayer extends mosquito.sim.Player {
 	
 	public HashSet<Tuple<Integer,Integer>> getNeighborNodes( Tuple<Integer,Integer> node, boolean[][] gameBoard ) {
 		HashSet<Tuple<Integer,Integer>> neighbors = new HashSet<Tuple<Integer,Integer>>();
+		boolean excludeDiagonals = true;
 		for ( int x = -1; x <= 1; x++ ) {
 			for ( int y = -1; y <=1; y++ ) {
-				// exclude diagonals
-				if ( x==0 || y==0 ) {
+				if ( !excludeDiagonals || (x==0 || y==0) ) {
 					Tuple<Integer,Integer> neighbor = new Tuple<Integer,Integer>(node.x+x,node.y+y);
 					if ( isValidSpace(neighbor) && !(x==0 && y==0) 
 							&& gameBoard[neighbor.x][neighbor.y] 
@@ -506,7 +524,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 				}
 			}
 			if  ( current.equals(goal) ) {
-				List<Tuple<Integer,Integer>> path = reconstructPath(cameFrom, goal);
+				//List<Tuple<Integer,Integer>> path = reconstructPath(cameFrom, goal);
 				/*
 				for ( Tuple<Integer,Integer> point : path ) {
 					//log.debug(point + " is valid: " + this.validBoard[point.x][point.y]);
@@ -551,6 +569,14 @@ public class BFSPlayer extends mosquito.sim.Player {
 
 	public List<Tuple<Integer,Integer>> getPath ( Tuple<Integer,Integer> start, Tuple<Integer,Integer> goal ) {
 		List<Tuple<Integer,Integer>> o = new ArrayList<Tuple<Integer,Integer>>();
+
+		// Don't run A* for a trivial case
+		if ( start.equals(goal) ) {
+			o.add(goal);
+			return o;
+		}
+		
+		
 		// shrink the wall buffer and endpoint buffers -- there must be a way from point A to point B on a valid board
 		double wallBuffer = 0;
 		getValidBoard(wallBuffer);
@@ -563,6 +589,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 				return o;
 			}
 		}
+		this.currentEndpointBufferSize = this.defaultEndpointBufferSize;
 		
 		return o;
 	}
@@ -693,13 +720,31 @@ public class BFSPlayer extends mosquito.sim.Player {
 				if ( board[i][j] > 0 ) {
 					boolean capturedByLight = false;
 					for ( Light light : lights ) {
-						double x = Math.pow(i-light.getX(),2);
-						double y = Math.pow(j-light.getY(),2);
-						double distance = Math.pow(x+y,.5);
-						// Why < 4? Because there might be a wall....
-						if( distance < 4 ) {
-							capturedByLight = true;
+						Line2D path = new Line2D.Double( light.getX(),light.getY(),i,j);
+
+						boolean blockedByWall = true;
+						if (getDistance((int) light.getX(), (int) light.getY(),i,j) < 20 ) {
+
+							boolean blocked = false;
+							for ( Line2D wall : walls ) {
+								if ( wall.intersectsLine(path) ) {
+									blocked = true;
+								}
+							}
+							blockedByWall = blockedByWall && blocked;
+
+							if ( !blockedByWall ) {
+								capturedByLight = true;
+							}
+
 						}
+//						double x = Math.pow(i-light.getX(),2);
+//						double y = Math.pow(j-light.getY(),2);
+//						double distance = Math.pow(x+y,.5);
+						// Why < 5? Because there might be a wall....
+//						if( distance < 10 ) {
+//							capturedByLight = true;
+//						}
 					}
 					if ( !capturedByLight ) {
 						captured = false;
@@ -733,6 +778,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 		}
 				
 		// If all mosquitoes captured, make sure they are all heading to a collector
+		/*
 		if ( allMosquitoesCaptured(board) ) {
 			for(int i = 0; i < numLights; i++) {
 				// Retrieve the objective (destination) for the current light
@@ -754,25 +800,51 @@ public class BFSPlayer extends mosquito.sim.Player {
 				}
 			}
 		}
+		*/
 
 		for(int i = 0; i < numLights; i++)
 		{
 
+			// Current light position
+			Tuple<Integer,Integer> currentLightPosition = new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY());
 			// Retrieve the objective (destination) for the current light
 			List<Tuple<Integer,Integer>> o = objective.get(i);
+			// Check to make sure objective is still relevant
+			boolean needsNewObjective = false;
+			if (    o==null 
+				 || o.isEmpty() 
+			   //|| isPositionCaptured(o.get(o.size()-1))
+				) {
+				needsNewObjective = true;
+				log.trace("Light " + i + " needs a new objective");
+			}
+			
 
 			
 			// If the light is turned off/has no mosquitoes, speed up around corners!
 			MoveableLight ml = (MoveableLight) lightArr[i];
-			if ( getMosquitoesCaptured(lightArr[i], board) == 0 ) {
-				ml.turnOff();
-				while ( o!=null && !o.isEmpty() && o.size() > 1 && o.get(0).equals(o.get(1)) ) {
-					o.remove(0);
+			// if light is ON
+			if ( ml.isOn() ) {
+				// should we turn it off?
+				if ( getMosquitoesCaptured(lightArr[i], board) == 0 ) {
+					ml.turnOff();
+					log.trace("Just turned OFF light " + i + " because there were no mosquitoes in range");
 				}
-				log.trace("I just turned off light " + i + " because it has " + getMosquitoesCaptured(lightArr[i], board) + " mosquitoes");
 			} else {
-				ml.turnOn();
+				// should we turn it on?
+				if ( o!=null && o.size() < 20 && getMosquitoesCaptured(lightArr[i],board) > 0 ) {
+					// We are near the objective
+					ml.turnOn();
+					log.trace("Just turned ON light " + i + " because it is near objective");
+				} else {
+					//  remove redundant moves to speed around corners!
+					while ( o!=null && !o.isEmpty() && o.size() > 1 && o.get(0).equals(o.get(1)) ) {
+						o.remove(0);
+					}
+				}
 			}
+
+
 			
 
 			if ( o!=null ) {
@@ -780,10 +852,8 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 			
 			// If the objective is null, calculate a new objective
-			if ( o==null || o.isEmpty() ) {
-
+			if ( needsNewObjective && !allMosquitoesCaptured(board) ) {
 				
-				Tuple<Integer,Integer> currentLightPosition = new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY());
 				// Place these in ints so value does not change
 				int currentX = currentLightPosition.x;
 				int currentY = currentLightPosition.y;
@@ -792,6 +862,8 @@ public class BFSPlayer extends mosquito.sim.Player {
 				if ( t == null ) {
 					log.trace("Failed to find anything in sight from " + currentLightPosition);
 					//t = getClosest(board,currentLightPosition);
+
+/*					
 					// Idea:
 					// Iterate over endpoints
 					List<Tuple<Integer,Integer>> endpointList = new ArrayList<Tuple<Integer,Integer>>();
@@ -805,22 +877,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 						// This distance is not good enough--we need line-of-sight distance
 						double distance = getDistance( currentLightPosition, endpoint );
 						
-						/*
-						int[][] fakeMosquitoBoardWithEndpoints = new int[100][100];
-						// Create a new board using the endpoint as a pseudo-mosquito
-						for ( int h = 0; h < 100; h++ ) {
-							for ( int v = 0; v < 100; v++ ) {
-								fakeMosquitoBoardWithEndpoints[v][h]=0;
-							}
-						}
-						fakeMosquitoBoardWithEndpoints[(int) endpoint.x][(int) endpoint.y] = 1;
-						distance = getDistance (currentLightPosition, getClosestInSight( fakeMosquitoBoardWithEndpoints, currentLightPosition ));
-						*/
-						
 						// Find closest mosquito to endpoint
 						Tuple<Integer,Integer> closestMosquito = getClosestInSight(board,endpoint);
 						// It is possible that there are no mosquitoes in view of an endpoint
-						if ( !(closestMosquito == null) ) {
+						if ( closestMosquito != null ) {
+							log.trace(i + ": closest mosquito is " + closestMosquito);
 							double mosquitoDistance = getDistance( endpoint, closestMosquito );
 							// Total distance from light to endpoint to mosquito
 							double totalDistance = distance + mosquitoDistance;
@@ -830,7 +891,15 @@ public class BFSPlayer extends mosquito.sim.Player {
 								shortestDistance = totalDistance;
 								t = closestMosquito;
 							}
+						} else {
+							log.trace(i + ": couldn't find ANY mosquitoes?!");
+							t = getAnyUncapturedMosquito(board);
 						}
+					}
+*/
+					if ( t == null ) {
+						log.trace(i + ": couldn't find ANY mosquitoes?!");
+						t = getAnyUncapturedMosquito(board);
 					}
 				}
 				if ( t == null ) {
@@ -842,15 +911,21 @@ public class BFSPlayer extends mosquito.sim.Player {
 				o = getPath(currentLightPosition,t);
 				
 				// reset valid board
-				getValidBoard(board,this.currentWallOffset);
+				getValidBoard(board,this.defaultWallOffset);
 				
 				if ( o == null ) {
 					log.debug("A* could not find a path. Not even with endpoint buffer zero. This board may be impossible.");
+					// but really, we can't let o be null -- this could happen when a mosquito is stuck in a wall
+					// i.e. the distance between mosquito and wall < 1
+					o = getPath(currentLightPosition,currentLightPosition);
 				}
-				//log.debug("Steps to objective from " + currentLightPosition);
+				
+				/*
+				log.debug("Steps to objective from " + currentLightPosition);
 				for ( Tuple<Integer,Integer> step : o ) {
-					//log.debug(step + " " + this.validBoard[step.x][step.y]);
+					log.debug(step + " " + this.validBoard[step.x][step.y]);
 				}
+				*/
 
 				// remove first item? which is the same as the start item?
 				if ( o != null && !o.isEmpty() ) {
@@ -880,35 +955,44 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 			
 			
-			// Go to collector (find path)
-			if ( 
-					// If we're already going to the collector, don't recalculate!
-					! ( !o.isEmpty() && o.get(o.size()-1).equals(collectorPosition) )
-					&& (
-						//!( !o.isEmpty() && coll.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)) )
-						this.failedMoves[i]>=20 // this needs to be > the endpoint/corner delay
-						// If a light has over n (250?) mosquitoes, go to the collector!
-						//|| ( getMosquitoesCaptured(lightArr[i],board) > getMosquitoesLeft(board)/2 )
-						// || ( getMosquitoesCaptured(lightArr[i],board) > 250 && !collectorPosition.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)))
-						|| o.isEmpty() 
-						|| (allMosquitoesCaptured(board) && !o.get(o.size()-1).equals(collectorPosition)) )
-					) {
-				log.debug("Light " + i + " should go to the collector");
-				if ( o.isEmpty() ) {
-					log.debug("Light " + i + " has no destination");
-				} else {
-					log.debug("Light " + i + " current destination is: " + o.get(o.size()-1).equals(collectorPosition));
-				}
-				o = getPath(new Tuple<Integer,Integer>((int)lightArr[i].getX(),(int)lightArr[i].getY()), collectorPosition);
-				// The light should wait around by the collector for a while to drop off mosquitoes
-				if ( o != null ) {
-					for ( int wait = 0; wait<=20; wait++ ) {
-						o.add(collectorPosition);
+			if ( allMosquitoesCaptured(board) && ( currentLightPosition.equals(collectorPosition) || (!o.isEmpty() && o.get(o.size()-1).equals(collectorPosition)))) {
+				if ( currentLightPosition.equals(collectorPosition) )
+				log.debug("*** we're already at, or moving to the collector");				
+			} else {
+			
+			
+				// Go to collector (find path)
+				if ( 
+						// If we're already going to the collector, don't recalculate!
+						! ( !o.isEmpty() && o.get(o.size()-1) != null && o.get(o.size()-1).equals(collectorPosition) )
+						&& (
+							//!( !o.isEmpty() && coll.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)) )
+							this.failedMoves[i]>=20 // this needs to be > the endpoint/corner delay
+							// If a light has over n (250?) mosquitoes, go to the collector!
+							//|| ( getMosquitoesCaptured(lightArr[i],board) > getMosquitoesLeft(board)/2 )
+							// || ( getMosquitoesCaptured(lightArr[i],board) > 250 && !collectorPosition.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)))
+							|| ( o.isEmpty() && !currentLightPosition.equals(collectorPosition))
+							|| (allMosquitoesCaptured(board) && (!o.isEmpty() && !o.get(o.size()-1).equals(collectorPosition))) )
+						) {
+					log.debug("Light " + i + " should go to the collector");
+					if ( o.isEmpty() ) {
+						log.debug("Light " + i + " has no destination");
+					} else {
+						log.debug("Light " + i + " current destination is: " + o.get(o.size()-1).equals(collectorPosition));
+					}
+					o = getPath(new Tuple<Integer,Integer>((int)lightArr[i].getX(),(int)lightArr[i].getY()), collectorPosition);
+					// The light should wait around by the collector for a while to drop off mosquitoes
+					if ( o != null ) {
+						for ( int wait = 0; wait<=20; wait++ ) {
+							o.add(collectorPosition);
+						}
 					}
 				}
 			}
+			if ( o.isEmpty() && currentLightPosition.equals(collectorPosition) ) {
+				o.add(collectorPosition);
+			}
 			nextStop = o.get(0);
-
 			
 			log.debug( "Light " + i + " - Objective X:" + nextStop.x + ", Current X:" + lightArr[i].getX() + ", Objective Y:" + nextStop.y + ", Current Y:" + lightArr[i].getY() );
 
