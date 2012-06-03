@@ -476,7 +476,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 			for ( int i = 0; i<2; i++ ) {
 				for ( int j = 0; j<2; j++ ) {
 					if ( quadrantCount[i][j] < smallest ) {
-						smallest = i+j;
+						smallest = i*2+j;
 					}
 				}
 			}
