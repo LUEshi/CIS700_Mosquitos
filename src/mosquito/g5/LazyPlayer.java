@@ -437,6 +437,21 @@ public class LazyPlayer extends mosquito.sim.Player {
 		return null;
 	}
 
+	
+	public Light getClosestLight ( Tuple<Integer,Integer> t ) {
+		int shortestDistance = Integer.MAX_VALUE;
+		Light closestLight = null;
+		for ( Light light : lights ) {
+			Tuple<Integer,Integer> lightPosition = new Tuple<Integer,Integer>( (int) light.getX(), (int) light.getY() );
+			int distance = aStar(t,lightPosition).size();
+			if ( distance < shortestDistance ) {
+				closestLight = light;
+			}
+		}		
+		return closestLight;
+	}
+
+	
 	public List<Tuple<Integer,Integer>> leastEncumbered( int[][] mosqBoard ) {
 		List<Tuple<Integer,Integer>> rank = new ArrayList<Tuple<Integer,Integer>>();
 		boolean[][] board = getValidBoard(mosqBoard, 0 );
