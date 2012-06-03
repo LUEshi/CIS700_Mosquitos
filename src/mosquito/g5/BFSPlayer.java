@@ -35,11 +35,12 @@ public class BFSPlayer extends mosquito.sim.Player {
 	private Set<Line2D> walls;
 	private Map<Integer,List<Tuple<Integer,Integer>>> objective;
 	private Light[] lightArr;
+	private int[] failedMoves;
 	private boolean[][] validBoard;
-	private int defaultEndpointBufferSize = 5;
-	private int currentEndpointBufferSize = 5;
-	private int defaultWallOffset = 3;
-	private int currentWallOffset = 3;
+	private int defaultEndpointBufferSize = 1;
+	private int currentEndpointBufferSize = 1;
+	private double defaultWallOffset = .1;
+	private double currentWallOffset = .1;
 	
 	/*
 	 * This is called when a new game starts. It is passed the set
@@ -59,6 +60,10 @@ public class BFSPlayer extends mosquito.sim.Player {
 	}
 
 	
+	public Tuple<Integer,Integer> pointToTuple ( Point2D point ) {
+		return new Tuple<Integer,Integer>( (int) point.getX(), (int) point.getY() );
+	}
+	
 	public List<Tuple<Integer,Integer>> allPointsInLine ( Line2D line ) {
 		ArrayList<Tuple<Integer,Integer>> points = new ArrayList<Tuple<Integer,Integer>>();
 		double x1 = line.getX1();
@@ -75,8 +80,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 		return ( line.getY1() == line.getY2() );
 	}
 	
-	
 	public boolean[][] getValidBoard ( int[][] board ) {
+		return getValidBoard(board,this.currentWallOffset);
+	}
+	
+	public boolean[][] getValidBoard ( int[][] board, double offset ) {
 		log.trace("Creating validBoard based on walls present");
 		boolean[][] v = new boolean[100][100];
 		// initialize v
@@ -90,7 +98,6 @@ public class BFSPlayer extends mosquito.sim.Player {
 			
 			// If buffer is too high, mosquitoes get caught in a buffer zone
 			// Also, on some mazes, the walls may be too close together
-			int offset = this.currentWallOffset;
 			
 			if ( !isLineVertical(wall) ) {
 
@@ -115,11 +122,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 						v[(int) currentX][(int) currentY] = false;
 						
 						// todo: fix this hack
-						for ( int buffer = offset*(-1); buffer <= offset; buffer++ ) {
+						for ( double buffer = offset*(-1); buffer <= offset; buffer++ ) {
 							if ( currentY-buffer >= 0 && currentY-buffer < 100  )
-								v[(int) currentX][((int) currentY)-buffer] = false;
+								v[(int) currentX][(int) (currentY-buffer)] = false;
 							if ( currentY+buffer >= 0 && currentY+buffer < 100 )
-								v[(int) currentX][((int) currentY)+buffer] = false;
+								v[(int) currentX][(int) (currentY+buffer)] = false;
 						}
 						
 					} else {
@@ -143,11 +150,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 						v[(int) currentX][(int) currentY] = false;
 
 						// todo: fix this hack
-						for ( int buffer = offset*(-1); buffer <= offset; buffer++ ) {
+						for ( double buffer = offset*(-1); buffer <= offset; buffer++ ) {
 							if ( currentX-buffer >= 0 && currentX-buffer < 100 )
-								v[((int) currentX)-buffer][(int) currentY] = false;
+								v[(int) (currentX-buffer)][(int) currentY] = false;
 							if ( currentX+buffer >= 0 && currentX+buffer < 100 )
-								v[((int) currentX)+buffer][(int) currentY] = false;
+								v[(int) (currentX+buffer)][(int) currentY] = false;
 						}
 
 					
@@ -186,7 +193,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 	}
 	
 	public double getDistance( Tuple<Integer,Integer> p1, Tuple<Integer,Integer> p2 ) {
-		return getDistance( p1.x, p1.y, p2.x, p2.y );		
+		return getDistance( p1.x, p1.y, p2.x, p2.y );
 	}
 
 	public double getDistance ( int x1, int y1, int x2, int y2 ) {
@@ -219,6 +226,20 @@ public class BFSPlayer extends mosquito.sim.Player {
 	}
 	
 
+	public int getMosquitoesCaptured( Light light, int[][] board ) {
+		int count = 0;
+		// I'm just using a 5x5 square for now because it is simple
+		// Also, if they are more than 5 out, they may technically "belong" to another light
+		for ( int i = (int) light.getX()-10; i<(int) light.getX()+10; i++ ) {
+			for ( int j = (int) light.getX()-10; j<(int) light.getX()+10; j++ ) {
+				if ( i>=0 && j>=0 && i<100 && j<100 ) {
+					count = count + board[i][j];
+				}
+			}
+		}
+		return count;
+	}
+	
 	public Tuple<Integer,Integer> getClosestInSight( int[][] mosquitoBoard, Tuple<Integer,Integer> currentLightPosition ) {
 		
 		// clone valid board
@@ -287,7 +308,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 	 * so as not to lose mosquitoes
 	 */
 	public boolean nearEndpoints( Tuple<Integer,Integer> node ) {
-		int room = this.currentEndpointBufferSize;
+		return nearEndpoints(node, this.currentEndpointBufferSize );
+	}
+		
+	public boolean nearEndpoints( Tuple<Integer,Integer> node, double endpointBufferSize ) {
+		double room = endpointBufferSize;
 		for(Line2D wall : this.walls)
 		{
 			if ( (Math.abs(node.x - wall.getP1().getX()) + Math.abs(node.y - wall.getP1().getY()) < room) || (Math.abs(node.x - wall.getP2().getX()) + Math.abs(node.y - wall.getP2().getY()) < room ))  {
@@ -328,14 +353,33 @@ public class BFSPlayer extends mosquito.sim.Player {
 	
 
 	public List<Tuple<Integer,Integer>> reconstructPath ( HashMap<Tuple<Integer,Integer>,Tuple<Integer,Integer>> cameFrom, Tuple<Integer,Integer> currentNode ) {
+		int delayNearEndpoints = 10;
+		int roomNearEndpoints = 5;
+		
 		//log.trace("reconstructPath: cameFrom size:" + cameFrom.size() );
 		List<Tuple<Integer,Integer>> path = new ArrayList<Tuple<Integer,Integer>>();
 		if ( cameFrom.containsKey(currentNode) ) {
 			path = reconstructPath( cameFrom, cameFrom.get(currentNode));
 			path.add(currentNode);
+			// experimenting -- stay still near endpoints
+			
+			if ( nearEndpoints(currentNode, roomNearEndpoints) ) {
+				for ( int i = 0; i < delayNearEndpoints; i++ ) {
+					path.add(currentNode);
+				}
+			}
+			
 			return path;
 		} else {
 			path.add(currentNode);
+			// experimenting -- stay still near endpoints
+			
+			if ( nearEndpoints(currentNode,roomNearEndpoints) ) {
+				for ( int i = 0; i < delayNearEndpoints; i++ ) {
+					path.add(currentNode);
+				}
+			}
+			
 			return path;
 		}
 	}
@@ -379,9 +423,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 			if  ( current.equals(goal) ) {
 				List<Tuple<Integer,Integer>> path = reconstructPath(cameFrom, goal);
+				/*
 				for ( Tuple<Integer,Integer> point : path ) {
 					//log.debug(point + " is valid: " + this.validBoard[point.x][point.y]);
 				}
+				*/
 				return reconstructPath(cameFrom, goal);
 			}
 
@@ -436,9 +482,10 @@ public class BFSPlayer extends mosquito.sim.Player {
 		lights = new HashSet<Light>();
 		objective = new HashMap<Integer,List<Tuple<Integer,Integer>>>();
 		lightArr = new Light[numLights];
+		this.failedMoves = new int[numLights];
 		Random r = new Random();
 
-/* four corners config
+/* four corners config */
 		lastLight = new Point2D.Double(5.0, 0.0);
 		MoveableLight l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
 		lights.add(l);
@@ -463,8 +510,9 @@ public class BFSPlayer extends mosquito.sim.Player {
 		l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
 		lights.add(l);
 		lightArr[4]=l;
-*/
 
+		
+		/*
 		for(int i=0; i<numLights;i++)
 		{
 
@@ -474,14 +522,22 @@ public class BFSPlayer extends mosquito.sim.Player {
 			lastLight = new Point2D.Double(r.nextInt(100), r.nextInt(100));
 			startingPoint = new Tuple<Integer,Integer>((int) lastLight.x, (int) lastLight.y);
 			
+			// Make sure we're not starting out on a line or in a buffer zone
+			while ( !this.validBoard[startingPoint.x][startingPoint.y] ) {
+				lastLight = new Point2D.Double(r.nextInt(100), r.nextInt(100));
+				startingPoint = new Tuple<Integer,Integer>((int) lastLight.x, (int) lastLight.y);
+			}
+			
 			lastLight = new Point2D.Double(startingPoint.x, startingPoint.y);
 			MoveableLight l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
 			log.trace("Positioned a light at (" + lastLight.getX() + ", " + lastLight.getY() + ")");
 			lights.add(l);
 			lightArr[i]=l;
+			this.failedMoves[i]=0;
 
 			objective.put(i, null);
 		}
+*/
 
 		return lights;
 	}
@@ -596,17 +652,60 @@ public class BFSPlayer extends mosquito.sim.Player {
 			if ( o!=null ) {
 				log.debug(i+":"+"o: "+ o + " " + o.size());
 			}
-
+			
 			// If the objective is null, calculate a new objective
 			if ( o==null || o.isEmpty() ) {
 
 				
 				Tuple<Integer,Integer> currentLightPosition = new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY());
+				// Place these in ints so value does not change
+				int currentX = currentLightPosition.x;
+				int currentY = currentLightPosition.y;
 				Tuple<Integer,Integer> t = getClosestInSight(board,currentLightPosition);
 
 				if ( t == null ) {
 					log.trace("Failed to find anything in sight from " + currentLightPosition);
-					t = getClosest(board,currentLightPosition);				
+					//t = getClosest(board,currentLightPosition);
+					// Idea:
+					// Iterate over endpoints
+					List<Tuple<Integer,Integer>> endpointList = new ArrayList<Tuple<Integer,Integer>>();
+					for ( Line2D wall : walls ) {
+						endpointList.add( pointToTuple(wall.getP1()) );
+						endpointList.add( pointToTuple(wall.getP2()) );
+					}
+					double shortestDistance = Integer.MAX_VALUE;
+					// Find distance to endpoints
+					for ( Tuple<Integer,Integer> endpoint : endpointList ) {
+						// This distance is not good enough--we need line-of-sight distance
+						double distance = getDistance( currentLightPosition, endpoint );
+						
+						/*
+						int[][] fakeMosquitoBoardWithEndpoints = new int[100][100];
+						// Create a new board using the endpoint as a pseudo-mosquito
+						for ( int h = 0; h < 100; h++ ) {
+							for ( int v = 0; v < 100; v++ ) {
+								fakeMosquitoBoardWithEndpoints[v][h]=0;
+							}
+						}
+						fakeMosquitoBoardWithEndpoints[(int) endpoint.x][(int) endpoint.y] = 1;
+						distance = getDistance (currentLightPosition, getClosestInSight( fakeMosquitoBoardWithEndpoints, currentLightPosition ));
+						*/
+						
+						// Find closest mosquito to endpoint
+						Tuple<Integer,Integer> closestMosquito = getClosestInSight(board,endpoint);
+						// It is possible that there are no mosquitoes in view of an endpoint
+						if ( !(closestMosquito == null) ) {
+							double mosquitoDistance = getDistance( endpoint, closestMosquito );
+							// Total distance from light to endpoint to mosquito
+							double totalDistance = distance + mosquitoDistance;
+							if ( totalDistance < shortestDistance ) {
+								// This is our new best destination
+								// What if the endpoint is in a corner? No way around it? Possible issue
+								shortestDistance = totalDistance;
+								t = closestMosquito;
+							}
+						}
+					}
 				}
 				if ( t == null ) {
 					// go to a collector
@@ -618,15 +717,26 @@ public class BFSPlayer extends mosquito.sim.Player {
 					}
 				}
 
-				for ( int a = 0; a < this.defaultEndpointBufferSize; a++ ) {
-					this.currentEndpointBufferSize = this.defaultEndpointBufferSize-a;
-					o = aStar(currentLightPosition,t);
-					if ( o != null ) {
-						break;
-					}
-				}
+				// shrink the wall buffer and endpoint buffers -- there must be a way from point A to point B on a valid board
+//				for ( double wallBuffer = this.currentWallOffset-.5; wallBuffer > 0; wallBuffer-- ) {
+					double wallBuffer = 0;
+					getValidBoard(board,wallBuffer);
+
+					// shrink endpoint buffer
+					for ( int a = 0; a <= this.defaultEndpointBufferSize; a++ ) {
+						this.currentEndpointBufferSize = this.defaultEndpointBufferSize-a;
+						o = aStar(currentLightPosition,t);
+						if ( o != null ) {
+							break;
+						}
+					}					
+//				}
+				
+				// reset valid board
+				getValidBoard(board,this.currentWallOffset);
+				
 				if ( o == null ) {
-					log.debug("A* could not find a path. Not even with endpoint zero. This board may be impossible.");
+					log.debug("A* could not find a path. Not even with endpoint buffer zero. This board may be impossible.");
 				}
 				//log.debug("Steps to objective from " + currentLightPosition);
 				for ( Tuple<Integer,Integer> step : o ) {
@@ -643,10 +753,34 @@ public class BFSPlayer extends mosquito.sim.Player {
 
 			Tuple<Integer,Integer> nextStop;
 
+
+			// Try to avoid stuck lights with random moves
+			log.debug("Failed moves: " + this.failedMoves[i] + "!!!");
+			if ( this.failedMoves[i]>=20 ) {
+				// set a random objective?
+				Random r = new Random();
+				Tuple<Integer,Integer> randomSpace = new Tuple<Integer,Integer>(r.nextInt(100),r.nextInt(100));
+				o = aStar(new Tuple<Integer,Integer>((int)lightArr[i].getX(),(int)lightArr[i].getY()), randomSpace);
+				this.failedMoves[i]=0;
+			}
+			
+			
 			// Go to collector (find path)
 			Tuple<Integer,Integer> coll = new Tuple<Integer,Integer>(50,51);
-			if ( o.isEmpty() || (allMosquitoesCaptured(board) && !o.get(o.size()-1).equals(coll)) ) {
+			if ( 
+					//!( !o.isEmpty() && coll.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)) )
+					this.failedMoves[i]>=20 // this needs to be > the endpoint/corner delay
+					// If a light has over n (250?) mosquitoes, go to the collector!
+					|| ( getMosquitoesCaptured(lightArr[i],board) > 250 && !coll.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)))
+					|| o.isEmpty() 
+					|| (allMosquitoesCaptured(board) && !o.get(o.size()-1).equals(coll)) ) {
 				o = aStar(new Tuple<Integer,Integer>((int)lightArr[i].getX(),(int)lightArr[i].getY()), coll);
+				// The light should wait around by the collector for a while to drop off mosquitoes
+				if ( o != null ) {
+					for ( int wait = 0; wait<=20; wait++ ) {
+						o.add(coll);
+					}
+				}
 			}
 			nextStop = o.get(0);
 
@@ -691,13 +825,15 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 			
 			log.debug( "New position (light " + i + "):  (" + lightArr[i].getX() + "," + lightArr[i].getY() + ")" );
-			
+
 			// Remove the old objective
 			log.debug( o.get(0) + " =? " + lightArr[i].getX() + " " + lightArr[i].getY());
 			if ( !o.isEmpty() && o.get(0).equals(new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ) ) {
-				log.debug("POsition and destination are same");
 				o.remove(0);
 				this.objective.put(i, o);
+				this.failedMoves[i]=0;
+			} else {
+				this.failedMoves[i]++;
 			}
 		}
 		
