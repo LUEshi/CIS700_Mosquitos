@@ -42,6 +42,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 	private double defaultWallOffset = .1;
 	private double currentWallOffset = .1;
 	private int callsToAStar;
+	private Map<Line2D.Double, List<Tuple<Integer,Integer>>> pathMap = new HashMap<Line2D.Double, List<Tuple<Integer,Integer>>>();
 	
 	/*
 	 * This is called when a new game starts. It is passed the set
@@ -255,6 +256,17 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 		}
 
+		// center
+		int centerWallCount = 0;
+		for ( int i = 25; i < 75; i++ ) {
+			for ( int j = 25; j < 75; j++ ) {
+				if ( !board[i][j] ) {
+					centerWallCount++;
+				}
+			}	
+		}
+		int overallSmallestCount = centerWallCount;
+		
 		// repeat four times
 		for ( int q = 0; q < 4; q ++ ) {
 			int smallest = Integer.MAX_VALUE;
@@ -265,30 +277,40 @@ public class BFSPlayer extends mosquito.sim.Player {
 					if ( quadrantCount[i][j] < smallest ) {
 						smallestQ = new Tuple<Integer,Integer>(i,j);
 						smallest = quadrantCount[i][j];
+						if ( smallest < overallSmallestCount ) {
+							overallSmallestCount = smallest;
+						}
 					}
 				}
 			}
 			quadrantCount[smallestQ.x][smallestQ.y] = Integer.MAX_VALUE;
 			rank.add(new Tuple<Integer,Integer>(25+(smallestQ.x)*50,25+(smallestQ.y)*50));
 		}
-		
+		if ( overallSmallestCount == centerWallCount ) {
+			rank.add(new Tuple<Integer,Integer>(50,50));
+		}
 		return rank;
 	}
 
 	
 	public Tuple<Integer,Integer> getAnyUncapturedMosquito ( int[][] board ) {
+		List<Tuple<Integer,Integer>> uncapturedMosquitoes = new ArrayList<Tuple<Integer,Integer>>();
 		Tuple<Integer,Integer> mosquito = null;
 		for ( int i = 0; i<100; i++ ) {
 			for ( int j = 0; j<100; j++ ) {
 				if ( board[i][j] > 0 ) {
 					Tuple<Integer,Integer> position = new Tuple<Integer,Integer>(i,j);
 					if ( !isPositionCaptured(position) ) {
-						mosquito = position;
-						return mosquito;
+						uncapturedMosquitoes.add(position);
 					}
 				}
 			}
 		}
+		if ( uncapturedMosquitoes.size() > 0 ) {
+			Random r = new Random();
+			mosquito = uncapturedMosquitoes.get(r.nextInt(uncapturedMosquitoes.size()));
+		}
+		log.trace("Picked a random mosquito: " + mosquito);
 		return mosquito;
 	}
 	
@@ -380,15 +402,44 @@ public class BFSPlayer extends mosquito.sim.Player {
 
 
 	public int heuristicCostEstimate(Tuple<Integer,Integer> start, Tuple<Integer,Integer> goal) {
-		// Manhattan distance
+		Point2D.Double startPoint = new Point2D.Double((int)start.x,(int)start.y);
+		Point2D.Double goalPoint = new Point2D.Double((int)goal.x,(int)goal.y);
+		Line2D.Double pathLine = new Line2D.Double(startPoint,goalPoint);
+		
+		return getManhattanDistance(start, goal);
+/*		
+		if ( this.pathMap.containsKey(pathLine) ) {
+			return this.pathMap.get(pathLine).size();
+		}
 		if ( nearEndpoints(goal) ) {
 			// Make travel near endpoints more expensive
+			log.debug("ENDPOINTS - they are expensive");
 			return 10000 * getManhattanDistance(start, goal);
 		} else {
+			// Manhattan distance
 			return getManhattanDistance(start, goal);
 		}
+*/
 	}
 
+	public Tuple<Integer,Integer> getPointNotOnWall ( Tuple<Integer,Integer> t) {
+		int count=0;
+		Tuple<Integer,Integer> pointNotOnWall = new Tuple<Integer,Integer>(t.x,t.y);
+		while ( !this.validBoard[t.x][t.y] ) {
+			count++;
+			Random r = new Random();
+			int nx = -1;
+			int ny = -1;
+			while ( !isValidSpace(nx,ny) ) {
+				nx = t.x+r.nextInt(count);
+				ny = t.y+r.nextInt(count);
+			}
+			pointNotOnWall = new Tuple<Integer,Integer>(nx,ny);
+		}
+
+		return pointNotOnWall;
+	}
+	
 	/*
 	 * The idea is to give the endpoints of lines plenty of room
 	 * so as not to lose mosquitoes
@@ -576,6 +627,15 @@ public class BFSPlayer extends mosquito.sim.Player {
 			return o;
 		}
 		
+		// Check to see if we already have this path on file
+		Point2D.Double startPoint = new Point2D.Double(start.x, start.y);
+		Point2D.Double goalPoint = new Point2D.Double(goal.x, goal.y);
+		Line2D.Double pathLine = new Line2D.Double(startPoint,goalPoint);
+		if ( this.pathMap.containsKey(pathLine)) {
+			return this.pathMap.get(pathLine);
+		}
+		
+		log.debug("Goal" + goal + " is valid? " + this.validBoard[goal.x][goal.y]);
 		
 		// shrink the wall buffer and endpoint buffers -- there must be a way from point A to point B on a valid board
 		double wallBuffer = 0;
@@ -612,7 +672,9 @@ public class BFSPlayer extends mosquito.sim.Player {
 		this.failedMoves = new int[numLights];
 		Random r = new Random();
 
-/* four corners config */
+		/* four corners config */
+		/* hard-coded? Ugly */
+		// Light 0: upper left
 		lastLight = new Point2D.Double(5.0, 0.0);
 		MoveableLight l = new MoveableLight(lastLight.getX(),lastLight.getY(), true);
 		lights.add(l);
@@ -679,6 +741,11 @@ public class BFSPlayer extends mosquito.sim.Player {
 		return ((y1-y2)/(l.getX1()-l.getX2()));
 	}
 
+	public boolean intersectsLines( Tuple<Integer,Integer> t1, Tuple<Integer,Integer> t2 )
+	{
+		return intersectsLines(t1.x,t1.y,t2.x,t2.y);
+	}
+	
 	public boolean intersectsLines(double x1, double y1, double x2, double y2)
 	{
 		return intersectsLines(new Line2D.Double(x1,y1,x2,y2));
@@ -712,6 +779,38 @@ public class BFSPlayer extends mosquito.sim.Player {
 	}
 	
 
+	public List<Tuple<Integer,Integer>> pathAroundCorner( List<Tuple<Integer,Integer>> o ) {
+		
+		if ( o.size()>=5 && getDistance(o.get(0),o.get(4)) == 3) {
+			// Move away from 4th move?
+			Tuple<Integer,Integer> startMove = o.get(0);
+			Tuple<Integer,Integer> lastMove = o.get(4);
+			Tuple<Integer,Integer> addedMove1 = o.get(0);
+			Tuple<Integer,Integer> addedMove2 = o.get(4);
+
+			if ( startMove.x < lastMove.x ) {
+				addedMove1 = new Tuple<Integer,Integer>(addedMove1.x-1,addedMove1.y);
+				addedMove2 = new Tuple<Integer,Integer>(addedMove1.x+1,addedMove1.y);
+			}
+			if ( startMove.x > lastMove.x ) {
+				addedMove1 = new Tuple<Integer,Integer>(addedMove1.x+1,addedMove1.y);
+				addedMove2 = new Tuple<Integer,Integer>(addedMove1.x-1,addedMove1.y);
+			}
+			if ( startMove.y < lastMove.y ) {
+				addedMove1 = new Tuple<Integer,Integer>(addedMove1.x,addedMove1.y-1);
+				addedMove2 = new Tuple<Integer,Integer>(addedMove1.x,addedMove1.y+1);
+			}
+			if ( startMove.y > lastMove.y ) {
+				addedMove1 = new Tuple<Integer,Integer>(addedMove1.x,addedMove1.y+1);
+				addedMove2 = new Tuple<Integer,Integer>(addedMove1.x,addedMove1.y-1);
+			}
+			o.add(1, addedMove1);
+			o.add(5, addedMove2);
+		}
+		return o;
+	}
+	
+	
 	public boolean allMosquitoesCaptured(int[][] board) {
 		boolean captured = true;
 		for ( int i = 0; i < 100; i++ ) {
@@ -776,30 +875,6 @@ public class BFSPlayer extends mosquito.sim.Player {
 			break;
 		}
 				
-		// If all mosquitoes captured, make sure they are all heading to a collector
-		/*
-		if ( allMosquitoesCaptured(board) ) {
-			for(int i = 0; i < numLights; i++) {
-				// Retrieve the objective (destination) for the current light
-				List<Tuple<Integer,Integer>> o = objective.get(i);
-				// Find the destination (last list item)
-				Tuple<Integer,Integer> destination;
-				if ( o!=null && !o.isEmpty()  ) {
-					destination = o.get(o.size()-1);
-				} else {
-					// Set an impossible destination
-					destination = new Tuple<Integer,Integer>(-1,-1);
-				}
-				
-				if ( !destination.equals(collectorPosition) ) {
-					// Find path to collector using A*
-					Tuple<Integer,Integer> currentLightPosition = new Tuple<Integer,Integer>( (int) lightArr[i].getX() ,(int) lightArr[i].getY() );
-					o = getPath(currentLightPosition,collectorPosition);
-					objective.put(i, o);
-				}
-			}
-		}
-		*/
 
 		for(int i = 0; i < numLights; i++)
 		{
@@ -808,6 +883,54 @@ public class BFSPlayer extends mosquito.sim.Player {
 			Tuple<Integer,Integer> currentLightPosition = new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY());
 			// Retrieve the objective (destination) for the current light
 			List<Tuple<Integer,Integer>> o = objective.get(i);
+
+			
+			// Should we go to a collector?
+			if ( allMosquitoesCaptured(board) && ( currentLightPosition.equals(collectorPosition) || (!o.isEmpty() && o.get(o.size()-1).equals(collectorPosition)))) {
+				if ( currentLightPosition.equals(collectorPosition) )
+				log.debug("*** we're already at, or moving to the collector");				
+			} else {
+			
+				if ( o!= null && !o.isEmpty() ) {
+					// Go to collector (find path)
+					if ( 
+							// If we're already going to the collector, don't recalculate!
+							! ( (o.get(o.size()-1) != null && o.get(o.size()-1).equals(collectorPosition)) )
+							&& (
+								//!( !o.isEmpty() && coll.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)) )
+								this.failedMoves[i]>=20 // this needs to be > the endpoint/corner delay
+								// If a light has over n (250?) mosquitoes, go to the collector!
+								//|| ( getMosquitoesCaptured(lightArr[i],board) > getMosquitoesLeft(board)/2 )
+								// || ( getMosquitoesCaptured(lightArr[i],board) > 250 && !collectorPosition.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)))
+								|| ( o.isEmpty() && !currentLightPosition.equals(collectorPosition))
+								|| (allMosquitoesCaptured(board) && (!o.isEmpty() && !o.get(o.size()-1).equals(collectorPosition)))
+								|| ( ((MoveableLight) lightArr[i]).isOn() && getDistance(currentLightPosition,collectorPosition)<20 && !intersectsLines(currentLightPosition,collectorPosition) && getMosquitoesCaptured(lightArr[i],board) > 0)) 
+							) {
+						log.debug("Light " + i + " should go to the collector");
+						log.debug("Why?");
+						
+						
+						//log.debug( "dest = collector? " + (o.get(o.size()-1).equals(collectorPosition)));
+						log.debug((!o.isEmpty() && (o.get(o.size()-1) != null && o.get(o.size()-1).equals(collectorPosition))));
+						//log.debug(o.get(o.size()-1) + " =? " + collectorPosition);
+						if ( o.isEmpty() ) {
+							log.debug("Light " + i + " has no destination");
+						} else {
+							log.debug("Light " + i + " current destination is: " + o.get(o.size()-1).equals(collectorPosition));
+						}
+						o = getPath(currentLightPosition, collectorPosition);
+						
+//						if ( o.size()>1 ) {
+//							o.remove(0);
+//						}
+					}
+				}
+			}
+
+			
+			
+			
+			
 			// Check to make sure objective is still relevant
 			boolean needsNewObjective = false;
 			if (    o==null 
@@ -816,6 +939,18 @@ public class BFSPlayer extends mosquito.sim.Player {
 				) {
 				needsNewObjective = true;
 				log.trace("Light " + i + " needs a new objective");
+				if ( o==null ) {
+					log.trace("Because the current obj is null");
+				} else {
+					if ( currentLightPosition.equals(collectorPosition) && getMosquitoesCaptured(lightArr[i],board) > 0) {
+						// we still need to deliver these mosquitoes
+						needsNewObjective = false;
+					}
+					if ( allMosquitoesCaptured(board) ) {
+						needsNewObjective = false;
+					}
+					log.trace("Because the current obj is empty");
+				}
 			}
 			
 
@@ -862,7 +997,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 					log.trace("Failed to find anything in sight from " + currentLightPosition);
 					//t = getClosest(board,currentLightPosition);
 
-/*					
+/*
 					// Idea:
 					// Iterate over endpoints
 					List<Tuple<Integer,Integer>> endpointList = new ArrayList<Tuple<Integer,Integer>>();
@@ -896,6 +1031,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 						}
 					}
 */
+
 					if ( t == null ) {
 						log.trace(i + ": couldn't find ANY mosquitoes?!");
 						t = getAnyUncapturedMosquito(board);
@@ -907,10 +1043,13 @@ public class BFSPlayer extends mosquito.sim.Player {
 				}
 
 				// Get path to objective
+				log.trace("Light" + i + ": get path from " + currentLightPosition + " " + t);
 				o = getPath(currentLightPosition,t);
+				log.trace(o);
+				log.trace("***");
 				
 				// reset valid board
-				getValidBoard(board,this.defaultWallOffset);
+				//getValidBoard(board,this.defaultWallOffset);
 				
 				if ( o == null ) {
 					log.debug("A* could not find a path. Not even with endpoint buffer zero. This board may be impossible.");
@@ -954,50 +1093,28 @@ public class BFSPlayer extends mosquito.sim.Player {
 			}
 			
 			
-			if ( allMosquitoesCaptured(board) && ( currentLightPosition.equals(collectorPosition) || (!o.isEmpty() && o.get(o.size()-1).equals(collectorPosition)))) {
-				if ( currentLightPosition.equals(collectorPosition) )
-				log.debug("*** we're already at, or moving to the collector");				
-			} else {
-			
-			
-				// Go to collector (find path)
-				if ( 
-						// If we're already going to the collector, don't recalculate!
-						! ( !o.isEmpty() && o.get(o.size()-1) != null && o.get(o.size()-1).equals(collectorPosition) )
-						&& (
-							//!( !o.isEmpty() && coll.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)) )
-							this.failedMoves[i]>=20 // this needs to be > the endpoint/corner delay
-							// If a light has over n (250?) mosquitoes, go to the collector!
-							//|| ( getMosquitoesCaptured(lightArr[i],board) > getMosquitoesLeft(board)/2 )
-							// || ( getMosquitoesCaptured(lightArr[i],board) > 250 && !collectorPosition.equals(new Tuple<Integer,Integer>(o.get(o.size()-1).x,o.get(o.size()-1).y)))
-							|| ( o.isEmpty() && !currentLightPosition.equals(collectorPosition))
-							|| (allMosquitoesCaptured(board) && (!o.isEmpty() && !o.get(o.size()-1).equals(collectorPosition))) )
-						) {
-					log.debug("Light " + i + " should go to the collector");
-					if ( o.isEmpty() ) {
-						log.debug("Light " + i + " has no destination");
-					} else {
-						log.debug("Light " + i + " current destination is: " + o.get(o.size()-1).equals(collectorPosition));
-					}
-					o = getPath(new Tuple<Integer,Integer>((int)lightArr[i].getX(),(int)lightArr[i].getY()), collectorPosition);
-					// The light should wait around by the collector for a while to drop off mosquitoes
-					if ( o != null ) {
-						for ( int wait = 0; wait<=20; wait++ ) {
-							o.add(collectorPosition);
-						}
-					}
-				}
+			if ( o==null ) {
+				o = new ArrayList<Tuple<Integer,Integer>>();
+				o.add(collectorPosition);
 			}
 			if ( o.isEmpty() && currentLightPosition.equals(collectorPosition) ) {
 				o.add(collectorPosition);
 			}
-			nextStop = o.get(0);
+			if ( o!= null && !o.isEmpty() ) {
+				// check for corners
+				o = pathAroundCorner(o);
+			}
+
+			
+			// Trying to avoid errors when o is null or empty
+			if ( o==null && o.isEmpty() ) {
+				nextStop = currentLightPosition;
+			} else {
+				nextStop = o.get(0);				
+			}
+
 			
 			log.debug( "Light " + i + " - Objective X:" + nextStop.x + ", Current X:" + lightArr[i].getX() + ", Objective Y:" + nextStop.y + ", Current Y:" + lightArr[i].getY() );
-
-			if ( nextStop.x == 50 && lightArr[i].getX() == 50 && nextStop.y == 51 && lightArr[i].getX() == 52 ) {
-				log.debug("Almost there!");
-			}
 			
 			if(nextStop.y<lightArr[i].getY()) {
 				log.debug("try to move up");
@@ -1037,9 +1154,14 @@ public class BFSPlayer extends mosquito.sim.Player {
 			// Remove the old objective
 			log.debug( o.get(0) + " =? " + lightArr[i].getX() + " " + lightArr[i].getY());
 			if ( !o.isEmpty() && o.get(0).equals(new Tuple<Integer,Integer>( (int) lightArr[i].getX(), (int) lightArr[i].getY()) ) ) {
-				o.remove(0);
-				this.objective.put(i, o);
-				this.failedMoves[i]=0;
+				// Exception: if we are at a collector AND we still have mosquitoes
+				if ( currentLightPosition.equals(collectorPosition) && getMosquitoesCaptured(lightArr[i],board)>0 ) {
+					
+				} else {
+					o.remove(0);
+					this.objective.put(i, o);
+					this.failedMoves[i]=0;
+				}
 			} else {
 				this.failedMoves[i]++;
 			}
@@ -1064,17 +1186,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 		List<Tuple<Integer,Integer>> q = leastEncumbered( new int[100][100] );
 		Tuple<Integer,Integer> firstChoice = q.get(0);
 		int count = 0;
-		while ( !gameBoard[firstChoice.x][firstChoice.y] ) {
-			count++;
-			Random r = new Random();
-			int nx = -1;
-			int ny = -1;
-			while ( !isValidSpace(nx,ny) ) {
-				nx = firstChoice.x+r.nextInt(count);
-				ny = firstChoice.y+r.nextInt(count);
-			}
-			firstChoice = new Tuple<Integer,Integer>(nx,ny);
-		}
+		firstChoice = getPointNotOnWall(firstChoice);
 		
 		Collector c = new Collector(firstChoice.x,firstChoice.y);
 		log.trace("Placed a collector at " + c.getX() + "," + c.getY());
