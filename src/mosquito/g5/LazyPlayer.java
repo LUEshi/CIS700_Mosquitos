@@ -24,6 +24,8 @@ import mosquito.sim.MoveableLight;
 
 public class LazyPlayer extends mosquito.sim.Player {
 
+	private int lightCycle = 200;
+	private int cycleInterval = 20;
 	private final double epsilon = .00001;
 	private int currentMove = 0;
 	private int numLights;
@@ -36,10 +38,11 @@ public class LazyPlayer extends mosquito.sim.Player {
 	private Map<Integer,List<Tuple<Integer,Integer>>> objective;
 	private Light[] lightArr;
 	private boolean[][] validBoard;
-	private int defaultEndpointBufferSize = 2;
-	private int currentEndpointBufferSize = 2;
-	private int defaultWallOffset = 2;
-	private int currentWallOffset = 2;
+	private int defaultEndpointBufferSize = 0;
+	private int currentEndpointBufferSize = 0;
+	private int defaultWallOffset = 0;
+	private int currentWallOffset = 0;
+	private Tuple<Integer,Integer> collectorLight;
 
 	/*
 	 * This is called when a new game starts. It is passed the set
@@ -437,7 +440,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		return null;
 	}
 
-	
+
 	public Light getClosestLight ( Tuple<Integer,Integer> t ) {
 		int shortestDistance = Integer.MAX_VALUE;
 		Light closestLight = null;
@@ -451,7 +454,7 @@ public class LazyPlayer extends mosquito.sim.Player {
 		return closestLight;
 	}
 
-	
+
 	/*
 	 * Returns a rank order of quadrants, based on which has the fewest
 	 * spaces blocked by walls
@@ -487,10 +490,22 @@ public class LazyPlayer extends mosquito.sim.Player {
 					}
 				}
 			}
+			int x, y;
+			if(smallestQ.x == 0)
+				x = 20+(smallestQ.x)*50;
+			else
+				x = 30+(smallestQ.x)*50;
+
+			if(smallestQ.y == 0)
+				y = 20+(smallestQ.y)*50;
+			else
+				y = 30+(smallestQ.y)*50;
+
+			rank.add(new Tuple<Integer,Integer>(x,y));
 			quadrantCount[smallestQ.x][smallestQ.y] = Integer.MAX_VALUE;
-			rank.add(new Tuple<Integer,Integer>(25+(smallestQ.x)*50,25+(smallestQ.y)*50));
+			//rank.add(new Tuple<Integer,Integer>(26+(smallestQ.x)*50,26+(smallestQ.y)*50));
 		}
-		
+
 		return rank;
 	}
 
@@ -517,91 +532,181 @@ public class LazyPlayer extends mosquito.sim.Player {
 		//place first light
 		lightList.add(corners.get(0));
 
-		//need to make a path of lights from first light to goal
-		//make adjacency list to find build graph to find levels later
-		while(getDistance(lightList.get(0),corners.get(1))> 20  && lightList.size() < this.numLights )
-		{	
-			Tuple<Integer,Integer> next = null;
-			double minDist = Integer.MAX_VALUE;
-			for(double a = 0; a < Math.PI * 2; a+=Math.PI/10)
-			{
-				int x1 = lightList.get(lightList.size()-1).x;
-				int y1 = lightList.get(lightList.size()-1).y;
-				double x2 = x1 + radius * Math.cos(a);
-				double y2 = y1 + radius * Math.sin(a);
-				log.trace(x2 + " " + y2);
-				if(Math.round(x2)>99 || Math.round(x2)<0 
-						|| Math.round(y2)>99 || Math.round(y2)<0 
-						|| !validBoard[(int)Math.round(x2)][(int)Math.round(y2)] 
-						|| this.intersectsLines(x1, y1, x2, y2)
-						|| lightList.contains(new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2))))
-					continue;
-				
-				Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
-				List<Tuple<Integer,Integer>> as = aStar(lightList.get(lightList.size()-1),possibleNext);
-				double d = as == null ? Integer.MAX_VALUE : as.size();
-				if(d<minDist)
-				{
-					minDist = d;
-					next = possibleNext; 
-				}
-			}
-			if(next == null) log.error("next should not be null");
-			log.trace("adding light at " + next.x + ", " + next.y);
-			lightList.add(next);
-		}
-		//if lights left, find best starting point and make a path from there
-		int best = -1;
-		double dist = Integer.MAX_VALUE;
-		for(int i = 0; i<lightList.size();i++)
+		int best;
+		int goal = 1;
+		double dist;
+		while(goal < corners.size())
 		{
-			Tuple<Integer,Integer> t = lightList.get(0);
-			List<Tuple<Integer,Integer>> as = aStar(lightList.get(lightList.size()-1),corners.get(2));
-			double d = as == null ? Integer.MAX_VALUE : as.size();
-			if(d<dist)
+			//need to make a path of lights from first light to goal
+			//make adjacency list to find build graph to find levels later
+			while(getDistance(lightList.get(lightList.size()-1),corners.get(goal))>10
+					&& lightList.size()<this.numLights )
 			{
-				dist = d;
-				best= i; 
-			}
-		}
-
-		
-		//TODO: integrat this part with the previous one to reduce repeating code
-		while(getDistance(lightList.get(best),corners.get(2))> 20  && lightList.size() < this.numLights )
-		{	
-			Tuple<Integer,Integer> next = null;
-			double minDist = Integer.MAX_VALUE;
-			for(double a = 0; a < Math.PI * 2; a+=Math.PI/10)
-			{
-				int x1 = lightList.get(lightList.size()-1).x;
-				int y1 = lightList.get(lightList.size()-1).y;
-				double x2 = x1 + radius * Math.cos(a);
-				double y2 = y1 + radius * Math.sin(a);
-				if(Math.round(x2)>99 || Math.round(x2)<0 
-						|| Math.round(y2)>99 || Math.round(y2)<0 
-						|| !validBoard[(int)Math.round(x2)][(int)Math.round(y2)] 
-						|| this.intersectsLines(x1, y1, x2, y2)
-						|| lightList.contains(new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2))))
-					continue;
-				Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
-				List<Tuple<Integer,Integer>> as = aStar(lightList.get(lightList.size()-1),possibleNext);
-				double d = as == null ? Integer.MAX_VALUE : as.size();
-				if(d<minDist)
+				Tuple<Integer,Integer> next = null;
+				double minDist = Integer.MAX_VALUE;
+				for(double a = 0; a < Math.PI * 2; a+=Math.PI/10)
 				{
-					minDist = d;
-					next = possibleNext; 
+					int x1 = lightList.get(lightList.size()-1).x;
+					int y1 = lightList.get(lightList.size()-1).y;
+					double x2 = x1 + radius * Math.cos(a);
+					double y2 = y1 + radius * Math.sin(a);
+					log.trace(x2 + " " + y2);
+					if(Math.round(x2)>99 || Math.round(x2)<0 
+							|| Math.round(y2)>99 || Math.round(y2)<0 
+							|| !validBoard[(int)Math.round(x2)][(int)Math.round(y2)] 
+							                                    || this.intersectsLines(x1, y1, x2, y2)
+							                                    || lightList.contains(new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2))))
+						continue;
+
+					Tuple<Integer,Integer> possibleNext = new Tuple<Integer, Integer>((int)Math.round(x2),(int)Math.round(y2));
+					List<Tuple<Integer,Integer>> as = aStar(possibleNext,corners.get(goal));
+					double d = as == null ? Integer.MAX_VALUE : as.size();
+					if(d<minDist)
+					{
+						minDist = d;
+						next = possibleNext; 
+					}
+				}
+				if(next == null) log.error("next should not be null");
+				log.trace("adding light at " + next.x + ", " + next.y);
+				lightList.add(next);
+			}
+			//if lights left, find best starting point and make a path from there
+			goal++;
+			best = -1;
+			dist = Integer.MAX_VALUE;
+			if(lightList.size()==this.numLights || goal >= corners.size())
+				break;
+
+			for(int i = 0; i<lightList.size();i++)
+			{
+				List<Tuple<Integer,Integer>> as = aStar(lightList.get(i),corners.get(goal));
+				double d = as == null ? Integer.MAX_VALUE : as.size();
+				if(d<dist)
+				{
+					dist = d;
+					best= i; 
 				}
 			}
-			if(next == null) log.error("next should not be null");
-			log.trace("adding light at " + next.x + ", " + next.y);
-			lightList.add(next);
-		}
-		
-		//find light times
+			if(best == -1)
+				break;
+			Tuple<Integer,Integer> t = lightList.get(best);
+			lightList.set(best, lightList.get(lightList.size()-1));
+			lightList.set(lightList.size()-1, t);
 
+		}
+
+
+		//LIGHT LIST SHOULD NOT BE MODIFIED PAST THIS POINT
+		
+		//use BFS to find level
+		//1.create light graph
+		//2. BFS to create levels
+		//3. from there we can find the best point for the collector (middle level),
+		// and set times accordingly
+		List<Set<Tuple<Integer, Integer>>> adjList = new ArrayList<Set<Tuple<Integer,Integer>>>();
+		for(int i = 0; i < lightList.size(); i++)
+		{
+			adjList.add(new HashSet<Tuple<Integer,Integer>>());
+		}
+		for(int i = 0; i < lightList.size(); i++)
+		{
+			for(int j = 0; j < lightList.size(); j++)
+			{
+				if(i!=j)
+				{
+					if(this.getDistance(lightList.get(i),lightList.get(j))<19.5)
+					{
+						adjList.get(i).add(lightList.get(j));
+						adjList.get(j).add(lightList.get(i));
+					}
+				}
+			}
+		}
+
+		Map<Integer, Set<Tuple<Integer,Integer>>> levels = 
+			new HashMap<Integer, Set<Tuple<Integer,Integer>>>();
+		Queue<Integer> verts = new LinkedList<Integer>();
+		List<Boolean> marked = new ArrayList<Boolean>();
+		int currLevel = 1;
 		for(Tuple<Integer,Integer> t : lightList)
 		{
-			lights.add(new Light(t.x,t.y,100,100,0));
+			marked.add(false);
+		}
+		//find list that is a "leaf"
+		for(int i = 0; i<adjList.size();i++)
+			if(adjList.get(i).size()==1)
+			{
+				verts.add(i);
+				marked.set(i, true);
+				Set<Tuple<Integer,Integer>> s = new HashSet<Tuple<Integer,Integer>>();
+				s.add(lightList.get(i));
+				levels.put(currLevel, s);
+				break;
+			}
+	//	marked.set(0, true);
+
+		while(!verts.isEmpty())
+		{
+			currLevel++;
+			Integer curr = verts.poll();
+			Set<Tuple<Integer,Integer>> s = new HashSet<Tuple<Integer,Integer>>();
+			for(Tuple<Integer,Integer> t : adjList.get(curr))
+			{
+				Integer pos = lightList.indexOf(t);
+				if(!marked.get(pos))
+				{
+					marked.set(pos,true);
+					verts.add(pos);
+					s.add(lightList.get(pos));
+				}
+				
+			}
+			if(s.size()>0)
+			{
+				levels.put(currLevel, s);
+			}
+			else
+				currLevel--;
+		}
+
+		int midLevel = (int)(((double)currLevel)+.5)/2;
+		
+
+		for(int i = 0; midLevel + i <= levels.keySet().size(); i++)
+		{
+			if(i == 0)
+			{
+				if(levels.get(midLevel+i).size()>1)
+				{
+					Iterator<Tuple<Integer,Integer>> iter = levels.get(midLevel).iterator();
+					Tuple<Integer,Integer> t = iter.next();
+					this.collectorLight = t;
+					lights.add(new Light(t.x,t.y,this.lightCycle,this.lightCycle,0));
+					while(iter.hasNext())
+					{
+						levels.get(midLevel+1).add(iter.next());
+						iter.remove();
+					}
+				}
+				else
+				{
+					Iterator<Tuple<Integer,Integer>> iter = levels.get(midLevel).iterator();
+					Tuple<Integer,Integer> t = iter.next();
+					this.collectorLight = t;
+					lights.add(new Light(t.x,t.y,this.lightCycle,this.lightCycle,0));
+				}
+			}
+			else
+			{
+				for(Tuple<Integer,Integer> t : levels.get(midLevel+i))
+					lights.add(new Light(t.x,t.y,this.lightCycle,this.lightCycle-this.cycleInterval*i,0));
+				if(levels.containsKey(midLevel - i))
+					for(Tuple<Integer,Integer> t : levels.get(midLevel-i))
+						lights.add(new Light(t.x,t.y,this.lightCycle,this.lightCycle-this.cycleInterval*i,0));
+
+
+			}
 		}
 
 		return lights;
@@ -691,12 +796,8 @@ public class LazyPlayer extends mosquito.sim.Player {
 	 */
 	@Override
 	public Set<Collector> getCollectors() {
-		// this one just places a collector next to the last light that was added
 		collectors = new HashSet<Collector>();
-		//Collector c = new Collector(lastLight.getX()+1,lastLight.getY() +1);
-		//log.debug("Positioned a Collector at (" + (lastLight.getX()+1) + ", " + (lastLight.getY()+1) + ")");
-		Collector c = new Collector(50,51);
-		//Collector c = new Collector(2,2);
+		Collector c = new Collector(collectorLight.x,collectorLight.y+1);
 		collectors.add(c);
 		return collectors;
 	}
