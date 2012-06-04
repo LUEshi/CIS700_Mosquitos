@@ -1107,7 +1107,7 @@ public class BFSPlayer extends mosquito.sim.Player {
 
 			
 			// Trying to avoid errors when o is null or empty
-			if ( o==null && o.isEmpty() ) {
+			if ( o==null || o.isEmpty() || o.get(0)==null ) {
 				nextStop = currentLightPosition;
 			} else {
 				nextStop = o.get(0);				
